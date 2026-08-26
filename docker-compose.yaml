@@ -1,0 +1,95 @@
+# Stack de desenvolvimento local — Mana Paes
+#
+# Infraestrutura + API em modo JVM (sem GraalVM Native Image).
+# O build nativo é reservado para a nuvem (ver Dockerfile.cloud / CI).
+#
+# Uso:
+#   docker compose up -d --build
+#   docker compose logs -f api
+#
+# Serviços:
+#   postgres  -> banco de dados (porta 5432)
+#   rabbitmq  -> fila de notificações + management UI (porta 15672)
+#   mailpit   -> captura de e-mails em dev (UI na porta 8025, SMTP na 1025)
+#   api       -> backend Spring Boot em JVM (porta 8080)
+#   web       -> frontend (comentado: gerenciado pelo agente de frontend)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mana-paes-postgres
+    environment:
+      POSTGRES_DB: manapaes
+      POSTGRES_USER: manapaes
+      POSTGRES_PASSWORD: manapaes
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manapaes -d manapaes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: mana-paes-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: manapaes
+      RABBITMQ_DEFAULT_PASS: manapaes
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  api:
+    build:
+      context: ./mana-paes-api
+      dockerfile: local.Dockerfile
+    container_name: mana-paes-api
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: manapaes
+      DB_USER: manapaes
+      DB_PASSWORD: manapaes
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: manapaes
+      RABBIT_PASSWORD: manapaes
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      MAIL_ENABLED: "true"
+      NOTIFICATIONS_ENABLED: "true"
+      SCHEDULER_ENABLED: "true"
+      JWT_SECRET: mana-paes-dev-secret-change-me-0123456789
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./mana-paes-web
+      dockerfile: Dockerfile
+    container_name: mana-paes-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  rabbitmqdata:

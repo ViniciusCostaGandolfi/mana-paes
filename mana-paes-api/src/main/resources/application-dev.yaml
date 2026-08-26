@@ -1,0 +1,72 @@
+# Perfil "dev" — ambiente de desenvolvimento local via Docker Compose.
+# Aponta para PostgreSQL, RabbitMQ e Mailpit do docker-compose.yaml.
+# Ativa o pipeline de notificações e o scheduler (para testes locais).
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:manapaes}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:manapaes}
+    password: ${DB_PASSWORD:manapaes}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  h2:
+    console:
+      enabled: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  mail:
+    # Mailpit captura e-mails em dev (UI: http://localhost:8025)
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:manapaes}
+    password: ${RABBIT_PASSWORD:manapaes}
+
+app:
+  jwt:
+    # Secret de DEV apenas (placeholder). Em producao, obrigatorio via JWT_SECRET.
+    secret: ${JWT_SECRET:mana-paes-dev-secret-change-me-0123456789}
+    expiration: 86400000
+    refresh-expiration: 604800000
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    max-retries: 2
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}
+  evolution:
+    url: ${EVOLUTION_API_URL:}
+    global-api-key: ${EVOLUTION_API_KEY:}
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}
+
+
+springdoc:
+  api-docs:
+    enabled: true
+  
+  swagger-ui:
+    path: /swagger-ui/index.html

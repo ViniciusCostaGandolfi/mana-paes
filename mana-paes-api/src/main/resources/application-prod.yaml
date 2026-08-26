@@ -1,0 +1,52 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  # Producao: PostgreSQL. Todas as credenciais via variaveis de ambiente.
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:manapaes}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USER:manapaes}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT}
+    username: ${SMTP_USER}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+  rabbitmq:
+    host: ${RABBIT_HOST}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER}
+    password: ${RABBIT_PASSWORD}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 86400000
+    refresh-expiration: 604800000
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    max-retries: 2
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}
+  evolution:
+    url: ${EVOLUTION_API_URL}
+    global-api-key: ${EVOLUTION_API_KEY}
+  frontend:
+    url: ${FRONTEND_URL}

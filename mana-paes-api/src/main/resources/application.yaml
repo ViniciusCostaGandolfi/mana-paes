@@ -1,0 +1,76 @@
+spring:
+  application:
+    name: mana-paes
+
+  # Perfil default = desenvolvimento local: H2 em memoria + console habilitado.
+  # Nunca usar este datasource em producao (ver application-prod.yaml).
+  datasource:
+    url: jdbc:h2:mem:manapaes;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASSWORD:guest}
+
+app:
+  jwt:
+    # Secret placeholder APENAS para dev. Em producao (application-prod.yaml) e obrigatorio via JWT_SECRET.
+    # Minimo de 32 caracteres (HS256).
+    secret: ${JWT_SECRET:mana-paes-dev-secret-change-me-0123456789}
+    expiration: 86400000
+    refresh-expiration: 604800000
+  mail:
+    # Em dev/test o envio de e-mail e desabilitado (apenas loga).
+    enabled: ${MAIL_ENABLED:false}
+  notifications:
+    # Pipeline assincrona de notificacoes (RabbitMQ + consumidor). Em dev/test
+    # fica desabilitado: o evento de pedido criado e apenas logado e nenhuma
+    # fila/exchange e declarada. Em producao (application-prod.yaml) = true.
+    enabled: ${NOTIFICATIONS_ENABLED:false}
+    max-retries: 2
+  scheduler:
+    # Agendador do relatorio diario (DailyReportScheduler). Desabilitado em
+    # dev/test para nao disparar durante testes; em producao = true.
+    enabled: ${SCHEDULER_ENABLED:false}
+  evolution:
+    url: ${EVOLUTION_API_URL:}
+    global-api-key: ${EVOLUTION_API_KEY:}
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}

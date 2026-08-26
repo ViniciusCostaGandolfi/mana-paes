@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "jpa-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/jpa-patterns/SKILL.md",
+      "computedHash": "b006c947d019f2e90ec305a9d08d1b4b74fc56c4f245d5796abac316931d871c"
+    },
+    "springboot-patterns": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/springboot-patterns/SKILL.md",
+      "computedHash": "5902ed569b83996c1c3cc48d973f35702fadec46445a2988847d4ed725b488c5"
+    },
+    "springboot-security": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/springboot-security/SKILL.md",
+      "computedHash": "c518a86c3a473e0545c35065d82284d13a5d99d6f7a0e17780594f3a44af38ad"
+    },
+    "springboot-tdd": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/springboot-tdd/SKILL.md",
+      "computedHash": "37566744c3850a2bc683ea1734c4ecf67d84c7604e6b3df57b76e978479edfc8"
+    }
+  }
+}

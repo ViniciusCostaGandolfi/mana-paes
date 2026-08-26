@@ -1,0 +1,7 @@
+package vgandolfi.dev.mana_paes.application.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+
+public record ProductActiveRequest(
+        @NotNull Boolean active) {
+}

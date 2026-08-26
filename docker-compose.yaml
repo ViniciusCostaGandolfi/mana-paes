@@ -55,16 +55,17 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1
+    image: axllent/mailpit:latest
     container_name: mana-paes-mailpit
     ports:
-      - "25026:1025"  # SMTP (Original 1025)
-      - "25025:8025"  # UI (Original 8025)
+      - "25026:1025"  # SMTP
+      - "25025:8025"  # UI
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/readyz"]
       interval: 5s
       timeout: 5s
       retries: 10
+
 
   api:
     build:

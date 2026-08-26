@@ -64,7 +64,7 @@ services:
       dockerfile: local.Dockerfile
     container_name: mana-paes-api
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: manapaes

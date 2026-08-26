@@ -50,6 +50,13 @@ app:
     secret: ${JWT_SECRET:mana-paes-dev-secret-change-me-0123456789}
     expiration: 86400000
     refresh-expiration: 604800000
+  encryption:
+    # Chave-mestre de DEV apenas (placeholder). Em producao, obrigatoria via APP_ENCRYPTION_MASTER_KEY.
+    master-key: ${APP_ENCRYPTION_MASTER_KEY:mana-paes-dev-master-key-32chars!}
+  backend:
+    # URL base do backend (webhook da Evolution API). Em dev pode ficar vazia
+    # (o mock nao usa webhook); informar via APP_BACKEND_URL se o real for usado.
+    url: ${APP_BACKEND_URL:}
   mail:
     enabled: ${MAIL_ENABLED:true}
   notifications:
@@ -60,6 +67,7 @@ app:
   evolution:
     url: ${EVOLUTION_API_URL:}
     global-api-key: ${EVOLUTION_API_KEY:}
+    mock-connect-delay-ms: 10000
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}
 

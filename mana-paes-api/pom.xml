@@ -230,6 +230,7 @@
 										<include>vgandolfi.dev.mana_paes.api.controller</include>
 										<include>vgandolfi.dev.mana_paes.infrastructure.notification</include>
 										<include>vgandolfi.dev.mana_paes.infrastructure.scheduler</include>
+										<include>vgandolfi.dev.mana_paes.infrastructure.webhook</include>
 									</includes>
 									<limits>
 										<limit>
@@ -281,6 +282,39 @@
 				</executions>
 			</plugin>
 		</plugins>
+
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+			</resource>
+		</resources>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+		</profile>
+
+		<profile>
+			<id>prod</id>
+			<properties>
+				<spring.profiles.active>prod</spring.profiles.active>
+			</properties>
+		</profile>
+
+		<profile>
+			<id>test</id>
+			<properties>
+				<spring.profiles.active>test</spring.profiles.active>
+			</properties>
+		</profile>
+	</profiles>
 
 </project>

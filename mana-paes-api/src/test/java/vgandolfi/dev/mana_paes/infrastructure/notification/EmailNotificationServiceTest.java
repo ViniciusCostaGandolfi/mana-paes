@@ -26,7 +26,9 @@ class EmailNotificationServiceTest {
     private AppProperties appProperties(boolean mailEnabled) {
         return new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-test-secret-1234", 3600000L, 86400000L),
-                new AppProperties.Evolution("", ""),
+                new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
+                new AppProperties.Evolution("", "", 0L),
+                new AppProperties.Backend("http://localhost:8080"),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(mailEnabled),
                 new AppProperties.Notifications(false, 2),

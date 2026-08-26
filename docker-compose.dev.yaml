@@ -1,11 +1,16 @@
-# Stack de desenvolvimento local — Mana Paes
+# Stack de DESENVOLVIMENTO LOCAL — Mana Paes (tudo mockado)
 #
 # Infraestrutura + API em modo JVM (sem GraalVM Native Image).
 # O build nativo é reservado para a nuvem (ver Dockerfile.cloud / CI).
 #
+# Tudo que depende de provedores externos está MOCKADO:
+#   - Evolution API (WhatsApp) -> MOCK no backend (EVOLUTION_API_URL vazio)
+#   - SMTP (e-mail)            -> Mailpit (captura local, UI em http://localhost:8025)
+#   - RabbitMQ                 -> contêiner local (fila real, porém isolada)
+#
 # Uso:
-#   docker compose up -d --build
-#   docker compose logs -f api
+#   docker compose -f docker-compose.dev.yaml up -d --build
+#   docker compose -f docker-compose.dev.yaml logs -f api
 #
 # Serviços:
 #   postgres  -> banco de dados (porta 5432)
@@ -50,11 +55,16 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1
     container_name: mana-paes-mailpit
     ports:
       - "1025:1025"  # SMTP
-      - "8025:8025"  # UI (ver e-mails capturados)
+      - "8025:8025"  # UI
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   api:
     build:
@@ -77,8 +87,12 @@ services:
       MAIL_ENABLED: "true"
       NOTIFICATIONS_ENABLED: "true"
       SCHEDULER_ENABLED: "true"
-      # Secret de DEV apenas. Em produção, sempre via segredo (K8s/Vault/env).
       JWT_SECRET: mana-paes-dev-secret-change-me-0123456789
+      APP_ENCRYPTION_MASTER_KEY: mana-paes-dev-master-key-32chars!
+      # Evolution API vazia => MOCK do WhatsApp ativo (sem chamadas externas)
+      EVOLUTION_API_URL: ""
+      EVOLUTION_API_KEY: ""
+      APP_BACKEND_URL: ""
       FRONTEND_URL: http://localhost:3000
     ports:
       - "8080:8080"
@@ -86,6 +100,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
 
   # web:

@@ -49,10 +49,4 @@ public class NotificationConfig extends BaseEntity {
 
     @Column(name = "email_enabled", nullable = false)
     private boolean emailEnabled = true;
-
-    @Column(name = "evolution_api_instance_name", length = 100)
-    private String evolutionApiInstanceName;
-
-    @Column(name = "evolution_api_key", length = 255)
-    private String evolutionApiKey;
 }

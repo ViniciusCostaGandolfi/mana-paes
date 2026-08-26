@@ -20,7 +20,9 @@ class JwtServiceTest {
     private AppProperties appProperties(long expirationMs) {
         return new AppProperties(
                 new AppProperties.Jwt(SECRET, expirationMs, 86400000L),
-                new AppProperties.Evolution("", ""),
+                new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
+                new AppProperties.Evolution("", "", 0L),
+                new AppProperties.Backend("http://localhost:8080"),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(false),
                 new AppProperties.Notifications(false, 2),

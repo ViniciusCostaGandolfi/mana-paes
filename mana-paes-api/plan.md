@@ -221,11 +221,12 @@ String adminEmail
 LocalTime dailyReportTime // ex: 18:00
 boolean whatsappEnabled
 boolean emailEnabled
-String evolutionApiInstanceName
-String evolutionApiKey
 ```
 
 **Relacionamentos:** `1:1` com `Tenant`.
+
+> A conexão WhatsApp não é mais configurada por tenant: é GLOBAL (ver seção 16).
+> Os campos `evolutionApiInstanceName`/`evolutionApiKey` foram removidos (V14).
 
 ### `NotificationLog`
 
@@ -541,16 +542,21 @@ src/main/resources/db/migration/
 ```java
 @Component
 public class EvolutionApiClient {
-    private final RestTemplate restTemplate;
-    private final String baseUrl;
-    private final String apiKey;
+    private final RestClient restClient;
+    private final AppProperties appProperties;
 
-    public void sendText(String instance, String number, String text) {
-        // POST /message/sendText/{instance}
-        // com retry exponencial
-    }
+    public String createInstance(String instanceName, String webhookUrl) { ... }   // POST /instance/create → token
+    public String connectInstance(String instanceName, String apiKey) { ... }      // GET /instance/connect → QR (data URI)
+    public ConnectionStateInfo getConnectionState(String instanceName, String apiKey) { ... } // state + wuid
+    public void logoutInstance(String instanceName, String apiKey) { ... }         // DELETE /instance/logout
+    public void sendText(String instanceName, String apiKey, String number, String text) { ... }
 }
 ```
+
+A instância usada é sempre a GLOBAL (`"mana-paes"`), com token criptografado em
+repouso e descriptografado apenas em memória (ver seção 16). Em dev/test sem
+`app.evolution.url`, os métodos lançam `EvolutionApiNotConfiguredException`,
+capturada pelos serviços (falha graciosa).
 
 ### E-mail — EmailNotificationAdapter
 
@@ -643,9 +649,14 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     expiration: 86400000
+  encryption:
+    master-key: ${APP_ENCRYPTION_MASTER_KEY}   # obrigatória em prod
+  backend:
+    url: ${APP_BACKEND_URL:}
   evolution:
     url: ${EVOLUTION_API_URL}
     global-api-key: ${EVOLUTION_API_KEY}
+    mock-connect-delay-ms: 10000   # só para o MOCK (dev/test)
   frontend:
     url: ${FRONTEND_URL}
 ```
@@ -689,6 +700,80 @@ app:
 - [ ] JaCoCo coverage ≥ 80%
 - [ ] Build GraalVM native image
 - [ ] Docker Compose completo
+
+---
+
+## 16. Módulo WhatsApp — Conexão via QR Code (Evolution API, instância GLOBAL)
+
+A conexão WhatsApp é **uma instância única GLOBAL** (nome fixo `"mana-paes"`),
+compartilhada pela aplicação inteira (o sistema é multi-tenant, mas o número é
+um só). O admin conecta escaneando o QR code exibido no frontend; o backend
+persiste o número conectado.
+
+### Entidade `EvolutionConnection` (tabela `evolution_connections`, sem tenant_id)
+
+```java
+UUID id                       // padrão do projeto (BaseEntity: created_at/updated_at)
+String instanceName           // "mana-paes" (único, UNIQUE)
+String instanceApiKey         // token da instância — SEMPRE CRIPTOGRAFADO (AES-256/GCM)
+ConnectionState connectionState // CLOSE | CONNECTING | OPEN
+String connectedNumber        // ex: 5511999999999 (nullable)
+String qrCodeBase64           // data URI do QR pendente (TEXT, nullable)
+```
+
+Repositório: `EvolutionConnectionRepository` — `findFirstByOrderByCreatedAtAsc()`
+(singleton) e `findByInstanceName(name)`.
+
+### Criptografia em repouso
+
+- `app.encryption.master-key` (env `APP_ENCRYPTION_MASTER_KEY`): placeholder em
+  dev/test, **OBRIGATÓRIA em produção** (sem default em application-prod.yaml —
+  boot falha se ausente).
+- Bean `TextEncryptor` = `Encryptors.delux(...)` → **AES-256/GCM** (IV aleatório
+  por operação, saída hex, PBKDF2-HmacSHA1). Salt fixo/documentado:
+  hex de `"mana-paes-salt"` = `6d616e612d706165732d73616c74`.
+
+### Endpoints (`/api/v1/whatsapp`, todos `hasRole('ADMIN')`)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/api/v1/whatsapp/connect` | cria a instância (1ª vez), pede o QR, estado CONNECTING |
+| GET  | `/api/v1/whatsapp/status` | estado atual + QR (CONNECTING) ou número (OPEN) |
+| POST | `/api/v1/whatsapp/disconnect` | logout + limpa estado/número/QR |
+| POST | `/api/v1/whatsapp/test` | envia mensagem de teste ao número conectado |
+| POST | `/api/v1/whatsapp/simulate-scan` | **só no MOCK** — força OPEN (número `5511999999999`) |
+
+### Env vars
+
+```
+APP_ENCRYPTION_MASTER_KEY   # obrigatória em prod (criptografia do token)
+APP_BACKEND_URL             # base do backend → webhook da instância (…/api/v1/webhooks/evolution-api)
+EVOLUTION_API_URL           # vazia = MOCK; preenchida = REAL
+EVOLUTION_API_KEY           # chave global de gestão (createInstance)
+app.evolution.mock-connect-delay-ms  # mock: transição CONNECTING → OPEN (default 10000)
+```
+
+### Real × Mock
+
+- **REAL** (`EvolutionConnectionServiceImpl`): ativo quando `app.evolution.url`
+  preenchida (`@ConditionalOnExpression`). `startConnection()` → `createInstance`
+  (webhook = `app.backend.url + /api/v1/webhooks/evolution-api`, se url presente)
+  → salva token criptografado → `connectInstance` → QR + CONNECTING. Na subida
+  (`ApplicationRunner`) sincroniza state/connectedNumber via `getConnectionState`.
+  O webhook da Evolution (`QRCODE_UPDATED`/`CONNECTION_UPDATE`) persiste
+  QR/número/estado na tabela (a fonte de verdade do `/status`).
+- **MOCK** (`MockEvolutionConnectionServiceImpl`): ativo quando
+  `app.evolution.url` em branco (default de dev/test). Sem chamadas externas:
+  CONNECTING + QR fake (SVG data URI identificável como "MOCK"), auto-transição
+  para OPEN após o delay configurável, `simulate-scan` força OPEN. Exatamente 1
+  dos dois beans existe por contexto.
+
+### Migrations
+
+- `V13__create_evolution_connections.sql` — tabela global.
+- `V14__drop_evolution_fields_from_notification_configs.sql` — remove
+  `evolution_api_instance_name`/`evolution_api_key` de `notification_configs`
+  (o token do tenant em texto puro deixa de existir).
 
 ---
 

@@ -43,6 +43,10 @@ spring:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
 
+  profiles:
+    active:
+    - '@@spring.profiles.active@'
+
   rabbitmq:
     host: ${RABBIT_HOST:localhost}
     port: ${RABBIT_PORT:5672}
@@ -56,6 +60,15 @@ app:
     secret: ${JWT_SECRET:mana-paes-dev-secret-change-me-0123456789}
     expiration: 86400000
     refresh-expiration: 604800000
+  encryption:
+    # Chave-mestre para criptografar segredos em repouso (token da instancia
+    # Evolution). Placeholder APENAS em dev/test; em producao e obrigatoria
+    # via APP_ENCRYPTION_MASTER_KEY (sem default, fail fast no boot).
+    master-key: ${APP_ENCRYPTION_MASTER_KEY:mana-paes-dev-master-key-32chars!}
+  backend:
+    # URL base do backend (usada para registrar o webhook da Evolution API na
+    # instancia). Vazia em dev/test; em producao informar via APP_BACKEND_URL.
+    url: ${APP_BACKEND_URL:}
   mail:
     # Em dev/test o envio de e-mail e desabilitado (apenas loga).
     enabled: ${MAIL_ENABLED:false}
@@ -72,5 +85,7 @@ app:
   evolution:
     url: ${EVOLUTION_API_URL:}
     global-api-key: ${EVOLUTION_API_KEY:}
+    # Transicao automatica CONNECTING -> OPEN no MOCK (dev/test), em ms.
+    mock-connect-delay-ms: 10000
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}

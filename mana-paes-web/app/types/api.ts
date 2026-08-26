@@ -46,3 +46,10 @@ export interface DailyReportDispatchResponse { date: string; dispatched: boolean
 export interface TenantResponse { id: string; name: string; document: string | null; phone: string | null; address: string | null; active: boolean; }
 export interface TenantRequest { name: string; document?: string | null; phone?: string | null; address?: string | null; }
 export interface MessageResponse { message: string; }
+export type WhatsAppConnectionState = "CLOSE" | "CONNECTING" | "OPEN";
+export interface WhatsAppStatusResponse {
+  state: WhatsAppConnectionState;
+  qrCodeBase64?: string | null;
+  connectedNumber?: string | null;
+  updatedAt?: string | null;
+}

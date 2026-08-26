@@ -7,15 +7,13 @@ import java.time.LocalTime;
 
 /**
  * Atualização parcial da {@code NotificationConfig} do tenant: campos nulos não
- * são alterados (o segredo {@code evolutionApiKey} só é atualizado quando
- * informado).
+ * são alterados. A conexão WhatsApp é GLOBAL (instância única "mana-paes") —
+ * configurada em {@code /api/v1/whatsapp}, não aqui.
  */
 public record NotificationConfigRequest(
         @Size(max = 20) String adminWhatsappNumber,
         @Email @Size(max = 150) String adminEmail,
         LocalTime dailyReportTime,
         Boolean whatsappEnabled,
-        Boolean emailEnabled,
-        @Size(max = 100) String evolutionApiInstanceName,
-        @Size(max = 255) String evolutionApiKey) {
+        Boolean emailEnabled) {
 }

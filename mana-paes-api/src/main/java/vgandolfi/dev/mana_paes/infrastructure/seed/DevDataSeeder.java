@@ -151,9 +151,8 @@ public class DevDataSeeder implements CommandLineRunner {
         config.setDailyReportTime(LocalTime.of(18, 0));
         config.setWhatsappEnabled(true);
         config.setEmailEnabled(true);
-        config.setEvolutionApiInstanceName("mana-paes");
         configRepository.save(config);
-        log.info("seed_notification_config_created tenantId={} adminEmail={} instance=mana-paes",
+        log.info("seed_notification_config_created tenantId={} adminEmail={}",
                 tenant.getId(), admin.getEmail());
     }
 

@@ -67,12 +67,6 @@ public class NotificationConfigService {
         if (request.emailEnabled() != null) {
             config.setEmailEnabled(request.emailEnabled());
         }
-        if (request.evolutionApiInstanceName() != null) {
-            config.setEvolutionApiInstanceName(request.evolutionApiInstanceName());
-        }
-        if (request.evolutionApiKey() != null && !request.evolutionApiKey().isBlank()) {
-            config.setEvolutionApiKey(request.evolutionApiKey());
-        }
         NotificationConfig saved = configRepository.save(config);
 
         log.info("notification_config_updated tenantId={}", tenantId);

@@ -84,7 +84,7 @@ class NotificationConfigServiceTest {
         when(configRepository.save(any(NotificationConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
         NotificationConfigResponse response = service().updateConfig(tenantId,
-                new NotificationConfigRequest("5511999999999", null, null, true, null, null, null));
+                new NotificationConfigRequest("5511999999999", null, null, true, null));
 
         assertThat(response.adminWhatsappNumber()).isEqualTo("5511999999999");
         assertThat(response.whatsappEnabled()).isTrue();

@@ -2,23 +2,27 @@ package vgandolfi.dev.mana_paes.infrastructure.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyFinancialReportResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyProductionReportResponse;
 import vgandolfi.dev.mana_paes.application.event.OrderCreatedEvent;
 import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.domain.model.EvolutionConnection;
 import vgandolfi.dev.mana_paes.domain.model.NotificationConfig;
 import vgandolfi.dev.mana_paes.domain.model.NotificationLog;
 import vgandolfi.dev.mana_paes.domain.model.User;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationChannel;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationStatus;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationType;
+import vgandolfi.dev.mana_paes.domain.repository.EvolutionConnectionRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationLogRepository;
 import vgandolfi.dev.mana_paes.domain.repository.OrderRepository;
 import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
 import vgandolfi.dev.mana_paes.domain.service.NotificationService;
+import vgandolfi.dev.mana_paes.infrastructure.whatsapp.EvolutionConnectionManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -53,6 +57,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final EvolutionApiClient evolutionApiClient;
     private final WhatsAppNotificationAdapter whatsAppAdapter;
     private final AppProperties appProperties;
+    private final EvolutionConnectionRepository connectionRepository;
+    private final TextEncryptor textEncryptor;
 
     public NotificationServiceImpl(NotificationConfigRepository configRepository,
                                    NotificationLogRepository logRepository,
@@ -61,7 +67,9 @@ public class NotificationServiceImpl implements NotificationService {
                                    EmailNotificationService emailService,
                                    EvolutionApiClient evolutionApiClient,
                                    WhatsAppNotificationAdapter whatsAppAdapter,
-                                   AppProperties appProperties) {
+                                   AppProperties appProperties,
+                                   EvolutionConnectionRepository connectionRepository,
+                                   TextEncryptor textEncryptor) {
         this.configRepository = configRepository;
         this.logRepository = logRepository;
         this.userRepository = userRepository;
@@ -70,6 +78,8 @@ public class NotificationServiceImpl implements NotificationService {
         this.evolutionApiClient = evolutionApiClient;
         this.whatsAppAdapter = whatsAppAdapter;
         this.appProperties = appProperties;
+        this.connectionRepository = connectionRepository;
+        this.textEncryptor = textEncryptor;
     }
 
     @Override
@@ -141,8 +151,8 @@ public class NotificationServiceImpl implements NotificationService {
         logRepository.save(entry);
 
         try {
-            evolutionApiClient.sendText(config.getEvolutionApiInstanceName(), config.getEvolutionApiKey(),
-                    config.getAdminWhatsappNumber(), content);
+            evolutionApiClient.sendText(EvolutionConnectionManager.GLOBAL_INSTANCE_NAME,
+                    resolveGlobalApiKey(), config.getAdminWhatsappNumber(), content);
             entry.setStatus(NotificationStatus.SENT);
             entry.setSentAt(Instant.now());
             log.info("whatsapp_test_sent tenantId={} recipient={}", tenantId, config.getAdminWhatsappNumber());
@@ -157,8 +167,33 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private boolean sendWhatsApp(NotificationConfig config, String number, String text) {
-        evolutionApiClient.sendText(config.getEvolutionApiInstanceName(), config.getEvolutionApiKey(), number, text);
+        evolutionApiClient.sendText(EvolutionConnectionManager.GLOBAL_INSTANCE_NAME,
+                resolveGlobalApiKey(), number, text);
         return true;
+    }
+
+    /**
+     * Resolve a chave da instância da conexão WhatsApp GLOBAL
+     * ({@code evolution_connections}, token criptografado descriptografado em
+     * memória). Sem conexão cadastrada (ou token indecifrável) retorna
+     * {@code null} — o {@code EvolutionApiClient} então lança
+     * {@link EvolutionApiNotConfiguredException}, registrada como FAILED no
+     * {@code NotificationLog} sem derrubar o fluxo.
+     */
+    private String resolveGlobalApiKey() {
+        return connectionRepository.findFirstByOrderByCreatedAtAsc()
+                .map(EvolutionConnection::getInstanceApiKey)
+                .map(this::decryptSafely)
+                .orElse(null);
+    }
+
+    private String decryptSafely(String encrypted) {
+        try {
+            return textEncryptor.decrypt(encrypted);
+        } catch (Exception ex) {
+            log.warn("evolution_api_key_decrypt_failed reason={}", ex.getMessage());
+            return null;
+        }
     }
 
     @Override

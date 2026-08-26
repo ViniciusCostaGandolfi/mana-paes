@@ -5,19 +5,23 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyFinancialReportResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyProductionReportResponse;
 import vgandolfi.dev.mana_paes.application.event.OrderCreatedEvent;
 import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.domain.model.EvolutionConnection;
 import vgandolfi.dev.mana_paes.domain.model.NotificationConfig;
 import vgandolfi.dev.mana_paes.domain.model.NotificationLog;
 import vgandolfi.dev.mana_paes.domain.model.Tenant;
 import vgandolfi.dev.mana_paes.domain.model.User;
+import vgandolfi.dev.mana_paes.domain.model.enums.ConnectionState;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationChannel;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationStatus;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationType;
 import vgandolfi.dev.mana_paes.domain.model.enums.UnitMeasure;
 import vgandolfi.dev.mana_paes.domain.model.enums.UserRole;
+import vgandolfi.dev.mana_paes.domain.repository.EvolutionConnectionRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationLogRepository;
 import vgandolfi.dev.mana_paes.domain.repository.OrderRepository;
@@ -32,6 +36,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -58,11 +65,17 @@ class NotificationServiceImplTest {
     private EmailNotificationService emailService;
     @Mock
     private EvolutionApiClient evolutionApiClient;
+    @Mock
+    private EvolutionConnectionRepository connectionRepository;
+    @Mock
+    private TextEncryptor textEncryptor;
 
     private final WhatsAppNotificationAdapter whatsAppAdapter = new WhatsAppNotificationAdapter();
     private final AppProperties appProperties = new AppProperties(
             new AppProperties.Jwt("test-secret-test-secret-test-secret-test-secret-1234", 3600000L, 86400000L),
-            new AppProperties.Evolution("", ""),
+            new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
+            new AppProperties.Evolution("", "", 0L),
+            new AppProperties.Backend("http://localhost:8080"),
             new AppProperties.Frontend("http://localhost"),
             new AppProperties.Mail(false),
             new AppProperties.Notifications(false, 2),
@@ -70,7 +83,8 @@ class NotificationServiceImplTest {
 
     private NotificationServiceImpl service() {
         return new NotificationServiceImpl(configRepository, logRepository, userRepository, orderRepository,
-                emailService, evolutionApiClient, whatsAppAdapter, appProperties);
+                emailService, evolutionApiClient, whatsAppAdapter, appProperties,
+                connectionRepository, textEncryptor);
     }
 
     private Tenant tenant(UUID tenantId) {
@@ -199,6 +213,41 @@ class NotificationServiceImplTest {
         verify(logRepository).save(captor.capture());
         // a mesma entidade é mutada para SENT após o save do PENDING
         assertThat(captor.getValue().getStatus()).isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    void sendTestWhatsAppUsesGlobalConnectionKey() {
+        UUID tenantId = UUID.randomUUID();
+        when(configRepository.findByTenantId(tenantId)).thenReturn(Optional.of(config(tenantId, true, true)));
+        EvolutionConnection connection = new EvolutionConnection();
+        connection.setInstanceApiKey("encrypted-token");
+        when(connectionRepository.findFirstByOrderByCreatedAtAsc()).thenReturn(Optional.of(connection));
+        when(textEncryptor.decrypt("encrypted-token")).thenReturn("global-api-key");
+
+        NotificationService.WhatsAppTestResult result = service().sendTestWhatsApp(tenantId);
+
+        assertThat(result.success()).isTrue();
+        verify(evolutionApiClient).sendText(eq("mana-paes"), eq("global-api-key"), eq("5511999999999"), anyString());
+    }
+
+    @Test
+    void sendTestWhatsAppWithUndecryptableKeyMarksFailed() {
+        UUID tenantId = UUID.randomUUID();
+        when(configRepository.findByTenantId(tenantId)).thenReturn(Optional.of(config(tenantId, true, true)));
+        EvolutionConnection connection = new EvolutionConnection();
+        connection.setInstanceApiKey("corrupted-token");
+        when(connectionRepository.findFirstByOrderByCreatedAtAsc()).thenReturn(Optional.of(connection));
+        when(textEncryptor.decrypt("corrupted-token"))
+                .thenThrow(new IllegalStateException("BadPaddingException: given final block not properly padded"));
+        // chave indecifrável -> resolveGlobalApiKey() devolve null -> client lança NotConfigured (sem derrubar o fluxo)
+        doThrow(new EvolutionApiNotConfiguredException("API key da Evolution não configurada"))
+                .when(evolutionApiClient).sendText(eq("mana-paes"), isNull(), eq("5511999999999"), anyString());
+
+        NotificationService.WhatsAppTestResult result = service().sendTestWhatsApp(tenantId);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.message()).contains("Falha ao enviar");
+        verify(evolutionApiClient).sendText(eq("mana-paes"), isNull(), eq("5511999999999"), anyString());
     }
 
     @Test

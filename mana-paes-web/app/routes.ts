@@ -26,6 +26,7 @@ export default [
       route("users/:id/edit", "routes/users/edit.$id.tsx"),
       route("reports/financial", "routes/reports/financial.tsx"),
       route("settings/notifications", "routes/settings/notifications.tsx"),
+      route("settings/whatsapp", "routes/settings/whatsapp.tsx"),
     ]),
 
     // Rota acessível por Produção e Admin (fora do sub-layout admin)

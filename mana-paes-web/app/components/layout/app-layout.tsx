@@ -56,6 +56,7 @@ export function AppLayout() {
       { to: "/reports/production", label: "Relatório de Produção" },
       { to: "/reports/financial", label: "Relatório Financeiro" },
       { to: "/settings/notifications", label: "Configurações" },
+      { to: "/settings/whatsapp", label: "WhatsApp" },
     );
   }
 

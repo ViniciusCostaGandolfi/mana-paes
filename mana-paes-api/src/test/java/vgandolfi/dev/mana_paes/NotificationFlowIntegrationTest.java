@@ -55,8 +55,7 @@ class NotificationFlowIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.adminWhatsappNumber").value("5511999999999"))
-                .andExpect(jsonPath("$.whatsappEnabled").value(true))
-                .andExpect(jsonPath("$.evolutionApiKeyConfigured").value(false));
+                .andExpect(jsonPath("$.whatsappEnabled").value(true));
 
         // POST whatsapp/test: sem Evolution API configurada em test -> falha
         // graciosa (200 + mensagem), NotificationLog registrado como FAILED

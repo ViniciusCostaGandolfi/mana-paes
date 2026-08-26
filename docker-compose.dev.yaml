@@ -104,15 +104,15 @@ services:
       mailpit:
         condition: service_healthy
 
-  # web:
-  #   build:
-  #     context: ./mana-paes-web
-  #     dockerfile: Dockerfile
-  #   container_name: mana-paes-web
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api
+  web:
+    build:
+      context: ./mana-paes-web
+      dockerfile: Dockerfile
+    container_name: mana-paes-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:

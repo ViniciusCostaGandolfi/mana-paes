@@ -39,24 +39,24 @@ services:
       DB_PORT: 5432
       DB_NAME: manapaes
       DB_USER: manapaes
-      DB_PASSWORD: manapaes
+      DB_PASSWORD: '${DB_PASSWORD:-manapaes}'
       RABBIT_HOST: rabbitmq
       RABBIT_PORT: 5672
-      RABBIT_USER: manapaes
-      RABBIT_PASSWORD: manapaes
-      SMTP_HOST: '${SMTP_HOST:-}'
+      RABBIT_USER: '${RABBIT_USER:-manapaes}'
+      RABBIT_PASSWORD: '${RABBIT_PASSWORD:-manapaes}'
+      SMTP_HOST: '${SMTP_HOST:-localhost}'
       SMTP_PORT: '${SMTP_PORT:-587}'
-      SMTP_USER: '${SMTP_USER:-}'
-      SMTP_PASSWORD: '${SMTP_PASSWORD:-}'
+      SMTP_USER: '${SMTP_USER:-none}'
+      SMTP_PASSWORD: '${SMTP_PASSWORD:-none}'
       MAIL_ENABLED: '${MAIL_ENABLED:-false}'
-      NOTIFICATIONS_ENABLED: "true"
-      SCHEDULER_ENABLED: "true"
-      JWT_SECRET: '${JWT_SECRET:-}'
-      APP_ENCRYPTION_MASTER_KEY: '${APP_ENCRYPTION_MASTER_KEY:-}'
-      EVOLUTION_API_URL: '${EVOLUTION_API_URL:-}'
-      EVOLUTION_API_KEY: '${EVOLUTION_API_KEY:-}'
-      APP_BACKEND_URL: '${APP_BACKEND_URL:-}'
-      FRONTEND_URL: '${FRONTEND_URL:-}'
+      NOTIFICATIONS_ENABLED: '${NOTIFICATIONS_ENABLED:-true}'
+      SCHEDULER_ENABLED: '${SCHEDULER_ENABLED:-true}'
+      JWT_SECRET: '${JWT_SECRET:-mana-paes-dev-secret-change-me-0123456789}'
+      APP_ENCRYPTION_MASTER_KEY: '${APP_ENCRYPTION_MASTER_KEY:-mana-paes-dev-master-key-32chars!}'
+      EVOLUTION_API_URL: '${EVOLUTION_API_URL:-http://localhost}'
+      EVOLUTION_API_KEY: '${EVOLUTION_API_KEY:-none}'
+      APP_BACKEND_URL: '${APP_BACKEND_URL:-https://dev.api.mana-paes.vgandolfi.dev}'
+      FRONTEND_URL: '${FRONTEND_URL:-https://dev.mana-paes.vgandolfi.dev}'
     depends_on:
       postgres:
         condition: service_healthy

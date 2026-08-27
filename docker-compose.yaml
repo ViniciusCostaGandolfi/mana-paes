@@ -1,3 +1,4 @@
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -31,7 +32,7 @@ services:
   api:
     build:
       context: ./mana-paes-api
-      dockerfile: local.Dockerfile
+      dockerfile: Dockerfile
     container_name: mana-paes-api
     environment:
       SPRING_PROFILES_ACTIVE: prod

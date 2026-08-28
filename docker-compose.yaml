@@ -1,26 +1,44 @@
+# ==============================================================================
+# Mana Paes — docker-compose de PRODUÇÃO/NUVEM (deploy no Coolify)
+# ------------------------------------------------------------------------------
+# Stack completa: PostgreSQL + RabbitMQ + API (build nativo GraalVM) + Web.
+#
+# TODAS as variáveis são lidas do arquivo `.env` na RAIZ do repositório —
+# SEM fallback: se a variável não estiver definida no .env, o compose falha
+# na interpolação (evita deploy com valor vazio/errado).
+#
+# Uso:
+#   cp example.env .env   # e preencha TODOS os valores
+#   docker compose up -d --build
+#
+# Obrigatórias (sem default; interpolação falha se ausentes):
+#   DB_PASSWORD, RABBIT_USER, RABBIT_PASSWORD, JWT_SECRET,
+#   APP_ENCRYPTION_MASTER_KEY
+# Demais: DB_HOST/PORT/NAME/USER, SMTP_*, MAIL_ENABLED, EVOLUTION_API_URL/KEY,
+#   APP_BACKEND_URL, FRONTEND_URL, NOTIFICATIONS_ENABLED, SCHEDULER_ENABLED,
+#   VITE_API_URL (build do web)
+# ==============================================================================
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: mana-paes-postgres
     environment:
-      POSTGRES_DB: manapaes
-      POSTGRES_USER: manapaes
-      POSTGRES_PASSWORD: manapaes
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U manapaes -d manapaes"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
-    container_name: mana-paes-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: manapaes
-      RABBITMQ_DEFAULT_PASS: manapaes
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
     volumes:
       - rabbitmqdata:/var/lib/rabbitmq
     healthcheck:
@@ -33,31 +51,32 @@ services:
     build:
       context: ./mana-paes-api
       dockerfile: Dockerfile
-    container_name: mana-paes-api
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: manapaes
-      DB_USER: manapaes
-      DB_PASSWORD: '${DB_PASSWORD:-manapaes}'
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       RABBIT_HOST: rabbitmq
       RABBIT_PORT: 5672
-      RABBIT_USER: '${RABBIT_USER:-manapaes}'
-      RABBIT_PASSWORD: '${RABBIT_PASSWORD:-manapaes}'
-      SMTP_HOST: '${SMTP_HOST:-localhost}'
-      SMTP_PORT: '${SMTP_PORT:-587}'
-      SMTP_USER: '${SMTP_USER:-none}'
-      SMTP_PASSWORD: '${SMTP_PASSWORD:-none}'
-      MAIL_ENABLED: '${MAIL_ENABLED:-false}'
-      NOTIFICATIONS_ENABLED: '${NOTIFICATIONS_ENABLED:-true}'
-      SCHEDULER_ENABLED: '${SCHEDULER_ENABLED:-true}'
-      JWT_SECRET: '${JWT_SECRET:-mana-paes-dev-secret-change-me-0123456789}'
-      APP_ENCRYPTION_MASTER_KEY: '${APP_ENCRYPTION_MASTER_KEY:-mana-paes-dev-master-key-32chars!}'
-      EVOLUTION_API_URL: '${EVOLUTION_API_URL:-http://localhost}'
-      EVOLUTION_API_KEY: '${EVOLUTION_API_KEY:-none}'
-      APP_BACKEND_URL: '${APP_BACKEND_URL:-https://dev.api.mana-paes.vgandolfi.dev}'
-      FRONTEND_URL: '${FRONTEND_URL:-https://dev.mana-paes.vgandolfi.dev}'
+      RABBIT_USER: ${RABBIT_USER}
+      RABBIT_PASSWORD: ${RABBIT_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_ENABLED: ${MAIL_ENABLED}
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED}
+      # Secrets obrigatorios: sem valor no .env => interpolação falha
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET e obrigatorio no .env}
+      APP_ENCRYPTION_MASTER_KEY: ${APP_ENCRYPTION_MASTER_KEY:?APP_ENCRYPTION_MASTER_KEY e obrigatorio no .env}
+      # Evolution vazio => MOCK (sem WhatsApp real). Em producao, preencher.
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      APP_BACKEND_URL: ${APP_BACKEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +87,9 @@ services:
     build:
       context: ./mana-paes-web
       dockerfile: Dockerfile
-    container_name: mana-paes-web
+      args:
+        # URL da API embutida no bundle do frontend (sem proxy do Vite em prod)
+        VITE_API_URL: ${VITE_API_URL}
     depends_on:
       - api
 

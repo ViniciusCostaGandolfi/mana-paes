@@ -1,14 +1,19 @@
-# Stack de DESENVOLVIMENTO LOCAL — Mana Paes (tudo mockado)
-#
+# ==============================================================================
+# Mana Paes — docker-compose de DESENVOLVIMENTO LOCAL (tudo mockado)
+# ------------------------------------------------------------------------------
 # Infraestrutura + API em modo JVM (sem GraalVM Native Image).
-# O build nativo é reservado para a nuvem (ver Dockerfile.cloud / CI).
 #
 # Tudo que depende de provedores externos está MOCKADO:
 #   - Evolution API (WhatsApp) -> MOCK no backend (EVOLUTION_API_URL vazio)
 #   - SMTP (e-mail)            -> Mailpit (captura local, UI em http://localhost:8025)
 #   - RabbitMQ                 -> contêiner local (fila real, porém isolada)
 #
+# TODAS as variáveis são lidas do arquivo `.env` na RAIZ do repositório —
+# SEM fallback: se a variável não estiver definida no .env, o compose falha
+# na interpolação.
+#
 # Uso:
+#   cp example.env .env   # e preencha TODOS os valores
 #   docker compose -f docker-compose.dev.yaml up -d --build
 #   docker compose -f docker-compose.dev.yaml logs -f api
 #
@@ -17,22 +22,23 @@
 #   rabbitmq  -> fila de notificações + management UI (porta 15672)
 #   mailpit   -> captura de e-mails em dev (UI na porta 8025, SMTP na 1025)
 #   api       -> backend Spring Boot em JVM (porta 8080)
-#   web       -> frontend (comentado: gerenciado pelo agente de frontend)
+#   web       -> frontend React (porta 3000)
+# ==============================================================================
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: mana-paes-postgres
     environment:
-      POSTGRES_DB: manapaes
-      POSTGRES_USER: manapaes
-      POSTGRES_PASSWORD: manapaes
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U manapaes -d manapaes"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -41,8 +47,8 @@ services:
     image: rabbitmq:4-management-alpine
     container_name: mana-paes-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: manapaes
-      RABBITMQ_DEFAULT_PASS: manapaes
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
     ports:
       - "5672:5672"    # AMQP
       - "15672:15672"  # Management UI
@@ -55,7 +61,7 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1
+    image: axllent/mailpit:latest
     container_name: mana-paes-mailpit
     ports:
       - "1025:1025"  # SMTP
@@ -72,28 +78,30 @@ services:
       dockerfile: local.Dockerfile
     container_name: mana-paes-api
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: manapaes
-      DB_USER: manapaes
-      DB_PASSWORD: manapaes
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       RABBIT_HOST: rabbitmq
       RABBIT_PORT: 5672
-      RABBIT_USER: manapaes
-      RABBIT_PASSWORD: manapaes
+      RABBIT_USER: ${RABBIT_USER}
+      RABBIT_PASSWORD: ${RABBIT_PASSWORD}
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
-      MAIL_ENABLED: "true"
-      NOTIFICATIONS_ENABLED: "true"
-      SCHEDULER_ENABLED: "true"
-      JWT_SECRET: mana-paes-dev-secret-change-me-0123456789
-      APP_ENCRYPTION_MASTER_KEY: mana-paes-dev-master-key-32chars!
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_ENABLED: ${MAIL_ENABLED}
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED}
+      JWT_SECRET: ${JWT_SECRET}
+      APP_ENCRYPTION_MASTER_KEY: ${APP_ENCRYPTION_MASTER_KEY}
       # Evolution API vazia => MOCK do WhatsApp ativo (sem chamadas externas)
-      EVOLUTION_API_URL: ""
-      EVOLUTION_API_KEY: ""
-      APP_BACKEND_URL: ""
-      FRONTEND_URL: http://localhost:3000
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      APP_BACKEND_URL: ${APP_BACKEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
     ports:
       - "8080:8080"
     depends_on:
@@ -108,6 +116,10 @@ services:
     build:
       context: ./mana-paes-web
       dockerfile: Dockerfile
+      args:
+        # Em dev o Vite tem proxy para /api -> localhost:8080, mas no build de
+        # produção (react-router-serve) o proxy não existe: aponte para a API.
+        VITE_API_URL: ${VITE_API_URL}
     container_name: mana-paes-web
     ports:
       - "3000:3000"

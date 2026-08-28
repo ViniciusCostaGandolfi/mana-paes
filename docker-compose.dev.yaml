@@ -58,7 +58,7 @@ services:
       retries: 10
 
   mailpit:
-    image: axllent/mailpit:v1
+    image: axllent/mailpit:latest
     container_name: mana-paes-mailpit
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/readyz"]

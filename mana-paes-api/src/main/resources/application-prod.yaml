@@ -54,5 +54,12 @@ app:
     url: ${EVOLUTION_API_URL}
     global-api-key: ${EVOLUTION_API_KEY}
     mock-connect-delay-ms: 10000
+    mock-send: ${EVOLUTION_MOCK_SEND:false}
+    # Instancia global da Evolution API (padrao: mana-paes).
+    instance-name: ${EVOLUTION_INSTANCE_NAME:mana-paes}
   frontend:
     url: ${FRONTEND_URL}
+  system-admin:
+    # Primeiro SYS_ADMIN (SystemAdminInitializer) — obrigatorio em prod (fail-fast).
+    email: ${SYSTEM_ADMIN_EMAIL}
+    password: ${SYSTEM_ADMIN_PASSWORD}

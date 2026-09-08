@@ -1,5 +1,6 @@
 package vgandolfi.dev.mana_paes.domain.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,12 +10,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -40,12 +44,34 @@ public class OrderItem extends BaseEntity {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
-    @Column(name = "quantity", nullable = false, precision = 19, scale = 3)
-    private BigDecimal quantity;
+    @Column(name = "quantidade_manha", nullable = false, precision = 19, scale = 3)
+    private BigDecimal quantidadeManha = BigDecimal.ZERO;
 
+    @Column(name = "quantidade_tarde", nullable = false, precision = 19, scale = 3)
+    private BigDecimal quantidadeTarde = BigDecimal.ZERO;
+
+    @Column(name = "quantidade_noite", nullable = false, precision = 19, scale = 3)
+    private BigDecimal quantidadeNoite = BigDecimal.ZERO;
+
+    /**
+     * Preço unitário no momento do pedido = preço base do produto + soma dos
+     * {@code priceAdjustment} das opções escolhidas (snapshot).
+     */
     @Column(name = "unit_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal unitPrice;
 
     @Column(name = "subtotal", nullable = false, precision = 19, scale = 2)
     private BigDecimal subtotal;
+
+    @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<OrderItemOption> options = new ArrayList<>();
+
+    public BigDecimal getTotalQuantity() {
+        return quantidadeManha.add(quantidadeTarde).add(quantidadeNoite);
+    }
+
+    public void addOption(OrderItemOption option) {
+        options.add(option);
+        option.setOrderItem(this);
+    }
 }

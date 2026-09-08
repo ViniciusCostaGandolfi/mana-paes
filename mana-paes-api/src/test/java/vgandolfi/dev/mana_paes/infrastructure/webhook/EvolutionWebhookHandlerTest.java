@@ -153,6 +153,40 @@ class EvolutionWebhookHandlerTest {
     }
 
     @Test
+    void eventForOneAdminInstanceDoesNotAffectAnother() {
+        EvolutionConnection breno = connection(ConnectionState.CONNECTING);
+        breno.setInstanceName("VGandolfi Dev");
+        EvolutionConnection outroAdmin = connection(ConnectionState.OPEN);
+        outroAdmin.setInstanceName("mana-paes-1234abcd");
+        outroAdmin.setConnectedNumber("5511888888888");
+
+        when(connectionRepository.findByInstanceName("VGandolfi Dev")).thenReturn(Optional.of(breno));
+
+        // payload do webhook do Breno afeta SÓ a conexão do Breno
+        handler.handle(new EvolutionWebhookPayload("CONNECTION_UPDATE", "VGandolfi Dev",
+                Map.of("state", "open", "wuid", "5511999999999@s.whatsapp.net")));
+
+        assertThat(breno.getConnectionState()).isEqualTo(ConnectionState.OPEN);
+        assertThat(breno.getConnectedNumber()).isEqualTo("5511999999999");
+        // a conexão do outro admin não foi tocada
+        assertThat(outroAdmin.getConnectedNumber()).isEqualTo("5511888888888");
+        assertThat(outroAdmin.getConnectionState()).isEqualTo(ConnectionState.OPEN);
+        verify(connectionRepository).save(breno);
+        org.mockito.Mockito.verify(connectionRepository, org.mockito.Mockito.never())
+                .save(outroAdmin);
+    }
+
+    @Test
+    void eventForUnknownInstanceIsLoggedAndIgnored() {
+        when(connectionRepository.findByInstanceName("desconhecida")).thenReturn(Optional.empty());
+
+        handler.handle(new EvolutionWebhookPayload("CONNECTION_UPDATE", "desconhecida",
+                Map.of("state", "open", "wuid", "5511999999999@s.whatsapp.net")));
+
+        verify(connectionRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void unknownEventIsIgnored() {
         handler.handle(new EvolutionWebhookPayload("SOMETHING_ELSE", "mana-paes", Map.of()));
 

@@ -7,7 +7,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import vgandolfi.dev.mana_paes.application.event.OrderCreatedEvent;
-import vgandolfi.dev.mana_paes.config.RabbitConfig;
+import vgandolfi.dev.mana_paes.infrastructure.config.RabbitConfig;
 import vgandolfi.dev.mana_paes.domain.service.OrderEventPublisher;
 
 /**

@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.config;
+package vgandolfi.dev.mana_paes.infrastructure.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;

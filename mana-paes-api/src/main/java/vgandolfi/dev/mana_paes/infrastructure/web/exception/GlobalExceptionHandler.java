@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.exception;
+package vgandolfi.dev.mana_paes.infrastructure.web.exception;
 
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import vgandolfi.dev.mana_paes.domain.exception.BusinessException;
+import vgandolfi.dev.mana_paes.domain.exception.ConflictException;
 import vgandolfi.dev.mana_paes.domain.exception.EntityNotFoundException;
 
 import java.util.List;
@@ -60,6 +61,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex) {
         return ResponseEntity.badRequest().body(ApiError.of(400, ex.getMessage()));
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiError> handleConflict(ConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiError.of(409, ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)

@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +16,8 @@ import vgandolfi.dev.mana_paes.domain.repository.DailyReportRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.ProductRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
+import vgandolfi.dev.mana_paes.application.service.ReportService;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -93,18 +95,27 @@ public class DailyReportDispatcher {
         report.setSent(false);
         dailyReportRepository.save(report);
 
+        // sem pedidos no dia: marca como enviado (não tenta de novo) e não notifica
+        if (financial.totalOrders() == 0) {
+            report.setSent(true);
+            dailyReportRepository.save(report);
+            log.info("daily_report_no_orders_skip tenantId={} date={}", tenantId, date);
+            return new DailyReportDispatchResponse(date, true, false, false,
+                    "sem pedidos no dia (nada enviado)", "");
+        }
+
         NotificationService.DailyReportSendResult sendResult =
                 notificationService.sendDailyReportNotifications(tenantId, production, financial);
 
         report.setSent(true);
         dailyReportRepository.save(report);
 
-        log.info("daily_report_dispatched tenantId={} date={} totalOrders={} totalAmount={} whatsapp={} email={}",
+        log.info("daily_report_dispatched tenantId={} date={} totalOrders={} totalAmount={} whatsapp={}",
                 tenantId, date, financial.totalOrders(), financial.totalAmount(),
-                sendResult.whatsappSent(), sendResult.emailSent());
+                sendResult.whatsappSent());
         return new DailyReportDispatchResponse(date, true,
-                sendResult.whatsappSent(), sendResult.emailSent(),
-                sendResult.whatsappMessage(), sendResult.emailMessage());
+                sendResult.whatsappSent(), false,
+                sendResult.whatsappMessage(), "");
     }
 
     /**

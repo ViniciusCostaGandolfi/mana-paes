@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.config;
+package vgandolfi.dev.mana_paes.infrastructure.config;
 
 import org.aopalliance.intercept.MethodInterceptor;
 import org.springframework.amqp.core.AcknowledgeMode;

@@ -13,8 +13,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * Monta as mensagens de texto do WhatsApp (confirmação ao solicitante, alerta
- * ao admin, mensagem de teste). Formatação simples, sem depender de infra.
+ * Monta as mensagens de texto do WhatsApp (confirmação ao vendedor, alerta ao
+ * admin, lembrete de pedido e resumo diário por turno). Formatação pt-BR,
+ * simples, sem depender de infra.
  */
 @Component
 public class WhatsAppNotificationAdapter {
@@ -23,17 +24,17 @@ public class WhatsAppNotificationAdapter {
     private static final DecimalFormat MONEY = new DecimalFormat(
             "#,##0.00", DecimalFormatSymbols.getInstance(new Locale("pt", "BR")));
 
-    public String orderConfirmation(OrderCreatedEvent event, String requesterName) {
+    public String orderConfirmation(OrderCreatedEvent event) {
         StringBuilder sb = new StringBuilder();
         sb.append("*Pedido confirmado!*\n");
-        appendOrderSummary(sb, event, requesterName);
+        appendOrderSummary(sb, event);
         return sb.toString();
     }
 
-    public String newOrderAdminAlert(OrderCreatedEvent event, String requesterName) {
+    public String newOrderAdminAlert(OrderCreatedEvent event) {
         StringBuilder sb = new StringBuilder();
         sb.append("*Novo pedido recebido!*\n");
-        appendOrderSummary(sb, event, requesterName);
+        appendOrderSummary(sb, event);
         return sb.toString();
     }
 
@@ -42,33 +43,57 @@ public class WhatsAppNotificationAdapter {
                 + "Se voce recebeu esta mensagem, a integracao com a Evolution API esta funcionando.";
     }
 
-    public String dailyReport(DailyProductionReportResponse production, DailyFinancialReportResponse financial) {
+    /**
+     * Mensagem de lembrete de pedido enviada ao vendedor, com o link público.
+     */
+    public String vendorReminder(String name, String link) {
+        return "Olá, " + name + "!\n"
+                + "Faça o seu pedido pelo link:\n" + link;
+    }
+
+    /**
+     * Resumo diário por turno (agregado por produto), com os nomes dos
+     * vendedores e o link do sistema. Formato otimizado para WhatsApp.
+     */
+    public String dailyReport(DailyProductionReportResponse production, DailyFinancialReportResponse financial,
+                              String appLink) {
         StringBuilder sb = new StringBuilder();
-        sb.append("*Relatório diário* ").append(DATE_FORMAT.format(production.date())).append('\n');
-        sb.append("Pedidos: ").append(financial.totalOrders()).append('\n');
+        sb.append("*Resumo dos pedidos - ").append(DATE_FORMAT.format(production.date())).append("*\n");
+        String vendorLine = production.vendorNames().isEmpty()
+                ? "Nenhum vendedor"
+                : String.join(", ", production.vendorNames());
+        sb.append(financial.totalOrders()).append(" pedido(s) de: ").append(vendorLine).append('\n');
+
         if (production.items().isEmpty()) {
             sb.append("Nenhum pedido no período.\n");
         } else {
-            sb.append("Itens:\n");
+            sb.append('\n');
             for (DailyReportItemResponse item : production.items()) {
-                sb.append("- ").append(item.productName())
-                        .append(" (qtd ").append(quantity(item.totalQuantity()))
-                        .append(' ').append(item.unitMeasure()).append(")\n");
+                sb.append(item.productName())
+                        .append(" — M:").append(quantity(item.quantidadeManha()))
+                        .append(" T:").append(quantity(item.quantidadeTarde()))
+                        .append(" N:").append(quantity(item.quantidadeNoite()))
+                        .append(" — Total: R$ ").append(MONEY.format(item.totalAmount())).append('\n');
             }
         }
-        sb.append("Total: R$ ").append(MONEY.format(financial.totalAmount()));
+        sb.append('\n').append("TOTAL GERAL: R$ ").append(MONEY.format(financial.totalAmount()));
+        if (appLink != null && !appLink.isBlank()) {
+            sb.append("\n\nAcesse o sistema: ").append(appLink);
+        }
         return sb.toString();
     }
 
-    private void appendOrderSummary(StringBuilder sb, OrderCreatedEvent event, String requesterName) {
+    private void appendOrderSummary(StringBuilder sb, OrderCreatedEvent event) {
         sb.append("Pedido #").append(shortId(event.orderId())).append('\n');
-        sb.append("Cliente: ").append(requesterName).append('\n');
+        if (event.vendorName() != null) {
+            sb.append("Vendedor: ").append(event.vendorName()).append('\n');
+        }
         sb.append("Entrega: ").append(DATE_FORMAT.format(event.deliveryDate())).append('\n');
         sb.append("Itens:\n");
         for (OrderCreatedEvent.Item item : event.items()) {
             sb.append("- ").append(item.productName())
                     .append(" (")
-                    .append(quantity(item.quantity()))
+                    .append(quantity(item.totalQuantity()))
                     .append(' ')
                     .append(item.unitMeasure())
                     .append(")\n");

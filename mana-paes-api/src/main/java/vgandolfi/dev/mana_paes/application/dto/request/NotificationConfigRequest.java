@@ -15,5 +15,6 @@ public record NotificationConfigRequest(
         @Email @Size(max = 150) String adminEmail,
         LocalTime dailyReportTime,
         Boolean whatsappEnabled,
-        Boolean emailEnabled) {
+        Boolean emailEnabled,
+        Boolean dailyReportEnabled) {
 }

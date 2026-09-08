@@ -8,7 +8,7 @@ import vgandolfi.dev.mana_paes.domain.model.NotificationConfig;
 import vgandolfi.dev.mana_paes.domain.model.Tenant;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
-import vgandolfi.dev.mana_paes.domain.service.DailyReportDispatcher;
+import vgandolfi.dev.mana_paes.application.service.DailyReportDispatcher;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -81,5 +81,31 @@ class DailyReportSchedulerTest {
         scheduler().runAt(today, LocalTime.of(12, 0));
 
         verify(dispatcher).dispatchForTenant(ok, today);
+    }
+
+    @Test
+    void runAtSkipsTenantsWithDailyReportDisabled() {
+        UUID disabled = UUID.randomUUID();
+        UUID enabled = UUID.randomUUID();
+        Tenant t1 = new Tenant();
+        t1.setId(disabled);
+        Tenant t2 = new Tenant();
+        t2.setId(enabled);
+        when(tenantRepository.findByActiveTrue()).thenReturn(List.of(t1, t2));
+
+        NotificationConfig c1 = new NotificationConfig();
+        c1.setDailyReportTime(LocalTime.of(10, 0));
+        c1.setDailyReportEnabled(false);
+        NotificationConfig c2 = new NotificationConfig();
+        c2.setDailyReportTime(LocalTime.of(10, 0));
+        c2.setDailyReportEnabled(true);
+        when(configRepository.findByTenantId(disabled)).thenReturn(Optional.of(c1));
+        when(configRepository.findByTenantId(enabled)).thenReturn(Optional.of(c2));
+
+        LocalDate today = LocalDate.now();
+        scheduler().runAt(today, LocalTime.of(12, 0));
+
+        verify(dispatcher, never()).dispatchForTenant(disabled, today);
+        verify(dispatcher).dispatchForTenant(enabled, today);
     }
 }

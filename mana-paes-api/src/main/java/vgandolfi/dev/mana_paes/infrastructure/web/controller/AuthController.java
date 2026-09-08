@@ -1,7 +1,6 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,11 +9,10 @@ import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.request.ForgotPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.LoginRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.RefreshTokenRequest;
-import vgandolfi.dev.mana_paes.application.dto.request.RegisterRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.ResetPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.response.LoginResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.MessageResponse;
-import vgandolfi.dev.mana_paes.domain.service.AuthService;
+import vgandolfi.dev.mana_paes.application.service.AuthService;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -29,11 +27,6 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
-    }
-
-    @PostMapping("/register")
-    public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
     @PostMapping("/refresh")

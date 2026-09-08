@@ -6,8 +6,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import vgandolfi.dev.mana_paes.application.event.OrderCreatedEvent;
-import vgandolfi.dev.mana_paes.config.RabbitConfig;
-import vgandolfi.dev.mana_paes.domain.service.NotificationService;
+import vgandolfi.dev.mana_paes.infrastructure.config.RabbitConfig;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
 
 /**
  * Consumidor da fila {@code mana-paes.orders.notifications}: para cada pedido

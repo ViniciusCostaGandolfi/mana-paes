@@ -9,7 +9,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import vgandolfi.dev.mana_paes.domain.repository.PasswordResetTokenRepository;
 
 import java.nio.charset.StandardCharsets;
 
@@ -20,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Fluxo de produtos: admin cria, requester lista, RBAC e desativação.
+ * Fluxo de produtos: admin cria, lista, desativa e verifica o filtro ativo.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -29,14 +28,9 @@ class ProductFlowIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private PasswordResetTokenRepository tokenRepository;
-
     @Test
-    void adminCreatesProductRequesterListsAndAdminDeactivates() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.produtos@example.com", "senha123");
-        String requesterToken = TestSupport.createRequesterAndGetToken(mockMvc, tokenRepository, adminToken,
-                "Funcionario", "func.produtos@example.com", "senha123");
+    void adminCreatesListsAndDeactivatesProduct() throws Exception {
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.produtos@example.com", "senha123");
 
         // admin cria produto
         MvcResult createResult = mockMvc.perform(post("/api/v1/products")
@@ -52,19 +46,12 @@ class ProductFlowIntegrationTest {
         String productId = JsonPath.read(
                 createResult.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.id");
 
-        // requester lista produtos do tenant
+        // lista produtos do tenant
         mockMvc.perform(get("/api/v1/products")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + requesterToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content[0].name").value("Pão Francês"));
-
-        // requester NÃO pode criar produto (RBAC)
-        mockMvc.perform(post("/api/v1/products")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + requesterToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Bolo\",\"unitPrice\":10.00,\"unitMeasure\":\"UN\"}"))
-                .andExpect(status().isForbidden());
 
         // admin desativa produto
         mockMvc.perform(patch("/api/v1/products/" + productId + "/active")
@@ -76,8 +63,12 @@ class ProductFlowIntegrationTest {
 
         // ?active=true não retorna o produto desativado
         mockMvc.perform(get("/api/v1/products?active=true")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + requesterToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
+
+        // sem token, endpoint protegido retorna 401
+        mockMvc.perform(get("/api/v1/products"))
+                .andExpect(status().isUnauthorized());
     }
 }

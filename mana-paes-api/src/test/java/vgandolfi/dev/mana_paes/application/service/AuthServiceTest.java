@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,10 +9,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import vgandolfi.dev.mana_paes.application.dto.request.ForgotPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.LoginRequest;
-import vgandolfi.dev.mana_paes.application.dto.request.RegisterRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.ResetPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.response.LoginResponse;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 import vgandolfi.dev.mana_paes.domain.exception.BusinessException;
 import vgandolfi.dev.mana_paes.domain.model.PasswordResetToken;
 import vgandolfi.dev.mana_paes.domain.model.Tenant;
@@ -22,6 +21,7 @@ import vgandolfi.dev.mana_paes.domain.repository.PasswordResetTokenRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
 import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
 import vgandolfi.dev.mana_paes.infrastructure.security.JwtService;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -56,18 +56,15 @@ class AuthServiceTest {
         return new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-test-secret-1234", 3600000L, 86400000L),
                 new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
-                new AppProperties.Evolution("", "", 0L),
+                new AppProperties.Evolution("", "", 0L, "mana-paes", false),
                 new AppProperties.Backend("http://localhost:8080"),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(false),
                 new AppProperties.Notifications(false, 2),
-                new AppProperties.Scheduler(false));
+                new AppProperties.Scheduler(false),
+                new AppProperties.SystemAdmin("vinicius@vgandolfi.dev", "admin123"));
     }
 
-    /**
-     * Constrói o serviço explicitamente: {@code AppProperties} é um valor real
-     * (não-mock) e o {@code @InjectMocks} não injetaria.
-     */
     private AuthService authService() {
         return new AuthService(userRepository, tenantRepository, passwordResetTokenRepository,
                 passwordEncoder, jwtService, notificationService, appProperties());
@@ -87,45 +84,6 @@ class AuthServiceTest {
         user.setActive(active);
         user.setTenant(tenant(UUID.randomUUID()));
         return user;
-    }
-
-    @Test
-    void registerCreatesTenantAndAdmin() {
-        when(userRepository.findByEmail("novo@example.com")).thenReturn(Optional.empty());
-        when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
-            Tenant tenant = inv.getArgument(0);
-            tenant.setId(UUID.randomUUID());
-            return tenant;
-        });
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> {
-            User user = inv.getArgument(0);
-            user.setId(UUID.randomUUID());
-            return user;
-        });
-        when(passwordEncoder.encode(anyString())).thenReturn("hash");
-        when(jwtService.generateAccessToken(any(User.class))).thenReturn("access");
-        when(jwtService.generateRefreshToken(any(User.class))).thenReturn("refresh");
-
-        LoginResponse response = authService().register(new RegisterRequest("Dona Padaria", "novo@example.com",
-                "senha123", null, null));
-
-        assertThat(response.accessToken()).isEqualTo("access");
-        assertThat(response.user().role()).isEqualTo(UserRole.ROLE_ADMIN);
-        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(userCaptor.capture());
-        assertThat(userCaptor.getValue().getRole()).isEqualTo(UserRole.ROLE_ADMIN);
-        assertThat(userCaptor.getValue().getPasswordHash()).isEqualTo("hash");
-    }
-
-    @Test
-    void registerWithDuplicateEmailThrows() {
-        when(userRepository.findByEmail("duplicado@example.com"))
-                .thenReturn(Optional.of(user(UUID.randomUUID(), "duplicado@example.com", UserRole.ROLE_ADMIN, true)));
-
-        assertThatThrownBy(() -> authService().register(new RegisterRequest("X", "duplicado@example.com",
-                "senha123", null, null)))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Já existe uma conta");
     }
 
     @Test

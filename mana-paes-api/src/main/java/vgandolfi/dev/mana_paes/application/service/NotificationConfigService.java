@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +18,7 @@ import vgandolfi.dev.mana_paes.domain.model.enums.NotificationStatus;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationLogRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
 
 import java.util.UUID;
 
@@ -66,6 +67,9 @@ public class NotificationConfigService {
         }
         if (request.emailEnabled() != null) {
             config.setEmailEnabled(request.emailEnabled());
+        }
+        if (request.dailyReportEnabled() != null) {
+            config.setDailyReportEnabled(request.dailyReportEnabled());
         }
         NotificationConfig saved = configRepository.save(config);
 

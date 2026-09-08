@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyFinancialReportResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.DailyProductionReportResponse;
-import vgandolfi.dev.mana_paes.domain.service.ReportService;
+import vgandolfi.dev.mana_paes.application.service.ReportService;
 import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 
 import java.time.LocalDate;
@@ -26,7 +26,7 @@ public class ReportController {
     }
 
     @GetMapping("/daily/production")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PRODUCTION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYS_ADMIN')")
     public ResponseEntity<DailyProductionReportResponse> dailyProduction(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -34,7 +34,7 @@ public class ReportController {
     }
 
     @GetMapping("/daily/financial")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYS_ADMIN')")
     public ResponseEntity<DailyFinancialReportResponse> dailyFinancial(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {

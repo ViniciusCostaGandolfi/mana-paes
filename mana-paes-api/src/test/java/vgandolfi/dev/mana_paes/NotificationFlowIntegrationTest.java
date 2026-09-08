@@ -20,12 +20,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Fluxo de notificações (Fase 4): config por tenant, envio de teste WhatsApp
- * (falha graciosa sem Evolution API em test) com NotificationLog, e webhook da
- * Evolution API respondendo 200.
- *
- * <p>Roda com {@code app.notifications.enabled=false} (default do perfil test):
- * sem RabbitMQ — o endpoint de teste e o webhook não dependem da fila.</p>
+ * Fluxo de notificações: config por tenant, envio de teste WhatsApp (em dev o
+ * envio é MOCK — EVOLUTION_MOCK_SEND=true — resultando em NotificationLog SENT)
+ * e webhook da Evolution API respondendo 200.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -36,14 +33,14 @@ class NotificationFlowIntegrationTest {
 
     @Test
     void configTestWhatsAppAndLogs() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.notificacoes@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.notificacoes@example.com", "senha123");
 
         // GET config cria a config padrão quando ausente
         mockMvc.perform(get("/api/v1/notifications/config")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.whatsappEnabled").value(false))
-                .andExpect(jsonPath("$.emailEnabled").value(true))
+                .andExpect(jsonPath("$.whatsappEnabled").value(true))
+                .andExpect(jsonPath("$.emailEnabled").value(false))
                 .andExpect(jsonPath("$.dailyReportTime").value("18:00:00"));
 
         // PUT config atualiza (parcial)
@@ -57,28 +54,64 @@ class NotificationFlowIntegrationTest {
                 .andExpect(jsonPath("$.adminWhatsappNumber").value("5511999999999"))
                 .andExpect(jsonPath("$.whatsappEnabled").value(true));
 
-        // POST whatsapp/test: sem Evolution API configurada em test -> falha
-        // graciosa (200 + mensagem), NotificationLog registrado como FAILED
+        // POST whatsapp/test: em dev o envio é MOCK (EVOLUTION_MOCK_SEND=true) ->
+        // console-print e NotificationLog registrado como SENT
         mockMvc.perform(post("/api/v1/notifications/whatsapp/test")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").isNotEmpty());
 
-        // GET logs com filtro por status mostra o registro do teste
-        mockMvc.perform(get("/api/v1/notifications/logs?status=FAILED")
+        // GET logs com filtro por status mostra o registro do teste (SENT/mock)
+        mockMvc.perform(get("/api/v1/notifications/logs?status=SENT")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content[0].channel").value("WHATSAPP"))
                 .andExpect(jsonPath("$.content[0].type").value("TEST"))
-                .andExpect(jsonPath("$.content[0].status").value("FAILED"))
-                .andExpect(jsonPath("$.content[0].recipient").value("5511999999999"))
-                .andExpect(jsonPath("$.content[0].errorMessage").isNotEmpty());
+                .andExpect(jsonPath("$.content[0].status").value("SENT"))
+                .andExpect(jsonPath("$.content[0].recipient").value("5511999999999"));
 
         // requester (não-ADMIN) não pode ver config
         // (token de um requester exige fluxo extra; aqui validamos via endpoint protegido)
         mockMvc.perform(get("/api/v1/notifications/config"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void dailyReportEnabledTogglePersists() throws Exception {
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.toggle@example.com", "senha123");
+
+        // default: envio automatico habilitado
+        mockMvc.perform(get("/api/v1/notifications/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyReportEnabled").value(true));
+
+        // desativa o envio automatico (atualizacao parcial)
+        mockMvc.perform(put("/api/v1/notifications/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"dailyReportEnabled":false}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyReportEnabled").value(false));
+
+        // GET confirma a persistencia
+        mockMvc.perform(get("/api/v1/notifications/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyReportEnabled").value(false));
+
+        // reativa o envio automatico
+        mockMvc.perform(put("/api/v1/notifications/config")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"dailyReportEnabled":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dailyReportEnabled").value(true));
     }
 
     @Test
@@ -115,7 +148,7 @@ class NotificationFlowIntegrationTest {
 
     @Test
     void manualDailyReportSendIsIdempotent() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.relatorio@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.relatorio@example.com", "senha123");
 
         // config com canais ativos (em test os envios falham graciosamente)
         mockMvc.perform(put("/api/v1/notifications/config")
@@ -132,7 +165,7 @@ class NotificationFlowIntegrationTest {
         mockMvc.perform(post("/api/v1/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"deliveryDate\":\"" + today + "\",\"items\":[{\"productId\":\"" + productId + "\",\"quantity\":5}]}"))
+                        .content("{\"deliveryDate\":\"" + today + "\",\"items\":[{\"productId\":\"" + productId + "\",\"quantidadeManha\":5,\"quantidadeTarde\":0,\"quantidadeNoite\":0}]}"))
                 .andExpect(status().isCreated());
 
         // primeiro disparo: dispatched=true
@@ -148,8 +181,8 @@ class NotificationFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dispatched").value(false));
 
-        // logs de DAILY_REPORT registrados (em test sem Evolution/SMTP ficam FAILED)
-        mockMvc.perform(get("/api/v1/notifications/logs?status=FAILED")
+        // logs de DAILY_REPORT registrados (em dev o envio é MOCK -> SENT)
+        mockMvc.perform(get("/api/v1/notifications/logs?status=SENT")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].type").value("DAILY_REPORT"))

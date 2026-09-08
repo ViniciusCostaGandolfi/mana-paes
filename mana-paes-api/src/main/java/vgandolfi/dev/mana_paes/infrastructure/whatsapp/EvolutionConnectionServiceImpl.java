@@ -8,32 +8,36 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vgandolfi.dev.mana_paes.application.dto.response.WhatsAppStatus;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 import vgandolfi.dev.mana_paes.domain.model.EvolutionConnection;
+import vgandolfi.dev.mana_paes.domain.model.User;
 import vgandolfi.dev.mana_paes.domain.model.enums.ConnectionState;
 import vgandolfi.dev.mana_paes.domain.repository.EvolutionConnectionRepository;
+import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
 import vgandolfi.dev.mana_paes.infrastructure.notification.EvolutionApiClient;
-import vgandolfi.dev.mana_paes.infrastructure.notification.EvolutionApiClient.ConnectionStateInfo;
+import vgandolfi.dev.mana_paes.infrastructure.evolution.EvolutionClient.ConnectionStateInfo;
 import vgandolfi.dev.mana_paes.infrastructure.webhook.EvolutionWebhookHandler;
 import org.springframework.security.crypto.encrypt.TextEncryptor;
 
 import java.util.Objects;
+import java.util.UUID;
 
 /**
- * Implementação REAL do gerenciador de conexão WhatsApp (instância global
- * "mana-paes"): ativa somente quando {@code app.evolution.url} está preenchida.
+ * Implementação REAL do gerenciador de conexão WhatsApp — UMA instância por
+ * usuário ADMIN: ativa somente quando {@code app.evolution.url} está
+ * preenchida.
  *
  * <p>Fluxo:</p>
  * <ul>
- *   <li>{@code startConnection()} — se não existe linha, cria a instância na
- *       Evolution API ({@code createInstance}) e guarda o token CRIPTOGRAFADO;
- *       depois pede o QR ({@code connectInstance}) e entra em CONNECTING;</li>
- *   <li>{@code getStatus()} — OPEN expõe o número conectado; CONNECTING expõe o
- *       QR code;</li>
- *   <li>{@code disconnect()} — {@code logoutInstance} + limpa estado/número/QR;</li>
- *   <li>{@code testConnection()} — {@code sendText} para o número conectado;</li>
+ *   <li>{@code startConnection(userId)} — se não existe conexão do usuário,
+ *       cria a instância na Evolution API com nome único derivado
+ *       ({@code <instanceName>-<8 primeiros dígitos do userId>}) e guarda o
+ *       token CRIPTOGRAFADO; depois pede o QR e entra em CONNECTING;</li>
+ *   <li>{@code getStatus/disconnect/testConnection(userId)} — operam na
+ *       conexão do usuário (pelo {@code instanceName} persistido);</li>
  *   <li>{@code run()} ({@link ApplicationRunner}) — sincroniza
- *       state/connectedNumber com a Evolution API na subida do app.</li>
+ *       state/connectedNumber de TODAS as conexões por ADMIN na subida do app
+ *       (falha de uma não impede as demais).</li>
  * </ul>
  *
  * <p>O token da instância NUNCA é armazenado em texto puro: criptografado com o
@@ -50,38 +54,44 @@ public class EvolutionConnectionServiceImpl implements EvolutionConnectionManage
 
     private final EvolutionApiClient evolutionApiClient;
     private final EvolutionConnectionRepository connectionRepository;
+    private final UserRepository userRepository;
     private final TextEncryptor textEncryptor;
     private final AppProperties appProperties;
 
     public EvolutionConnectionServiceImpl(EvolutionApiClient evolutionApiClient,
                                           EvolutionConnectionRepository connectionRepository,
+                                          UserRepository userRepository,
                                           TextEncryptor textEncryptor,
                                           AppProperties appProperties) {
         this.evolutionApiClient = evolutionApiClient;
         this.connectionRepository = connectionRepository;
+        this.userRepository = userRepository;
         this.textEncryptor = textEncryptor;
         this.appProperties = appProperties;
     }
 
     @Override
     @Transactional
-    public WhatsAppStatus startConnection() {
-        EvolutionConnection connection = connectionRepository.findFirstByOrderByCreatedAtAsc().orElse(null);
+    public WhatsAppStatus startConnection(UUID userId) {
+        EvolutionConnection connection = connectionRepository.findByUserId(userId).orElse(null);
         if (connection == null) {
-            String token = evolutionApiClient.createInstance(GLOBAL_INSTANCE_NAME, buildWebhookUrl());
+            User user = userRepository.findById(userId).orElse(null);
+            String instanceName = uniqueInstanceName(appProperties.evolution().instanceName(), userId);
+            String token = evolutionApiClient.createInstance(instanceName, buildWebhookUrl());
             connection = new EvolutionConnection();
-            connection.setInstanceName(GLOBAL_INSTANCE_NAME);
+            connection.setUser(user);
+            connection.setInstanceName(instanceName);
             connection.setInstanceApiKey(textEncryptor.encrypt(token));
             connection.setConnectionState(ConnectionState.CLOSE);
             connectionRepository.save(connection);
         } else if (!hasText(connection.getInstanceApiKey())) {
             // situação anômala: linha existe sem token → recria a instância
-            String token = evolutionApiClient.createInstance(GLOBAL_INSTANCE_NAME, buildWebhookUrl());
+            String token = evolutionApiClient.createInstance(connection.getInstanceName(), buildWebhookUrl());
             connection.setInstanceApiKey(textEncryptor.encrypt(token));
             connectionRepository.save(connection);
         }
 
-        String qrCode = evolutionApiClient.connectInstance(GLOBAL_INSTANCE_NAME, decryptKey(connection));
+        String qrCode = evolutionApiClient.connectInstance(connection.getInstanceName(), decryptKey(connection));
         connection.setQrCodeBase64(qrCode);
         connection.setConnectionState(ConnectionState.CONNECTING);
         connection.setConnectedNumber(null);
@@ -91,21 +101,21 @@ public class EvolutionConnectionServiceImpl implements EvolutionConnectionManage
 
     @Override
     @Transactional(readOnly = true)
-    public WhatsAppStatus getStatus() {
-        return connectionRepository.findFirstByOrderByCreatedAtAsc()
+    public WhatsAppStatus getStatus(UUID userId) {
+        return connectionRepository.findByUserId(userId)
                 .map(WhatsAppStatus::from)
                 .orElse(WhatsAppStatus.closed(null));
     }
 
     @Override
     @Transactional
-    public void disconnect() {
-        connectionRepository.findFirstByOrderByCreatedAtAsc().ifPresent(connection -> {
+    public void disconnect(UUID userId) {
+        connectionRepository.findByUserId(userId).ifPresent(connection -> {
             try {
-                evolutionApiClient.logoutInstance(GLOBAL_INSTANCE_NAME, decryptKey(connection));
+                evolutionApiClient.logoutInstance(connection.getInstanceName(), decryptKey(connection));
             } catch (Exception ex) {
                 log.warn("evolution_logout_failed instance={} reason={}",
-                        GLOBAL_INSTANCE_NAME, ex.getMessage());
+                        connection.getInstanceName(), ex.getMessage());
             }
             connection.setConnectionState(ConnectionState.CLOSE);
             connection.setConnectedNumber(null);
@@ -116,15 +126,15 @@ public class EvolutionConnectionServiceImpl implements EvolutionConnectionManage
 
     @Override
     @Transactional(readOnly = true)
-    public TestMessage testConnection() {
-        EvolutionConnection connection = connectionRepository.findFirstByOrderByCreatedAtAsc().orElse(null);
+    public TestMessage testConnection(UUID userId) {
+        EvolutionConnection connection = connectionRepository.findByUserId(userId).orElse(null);
         if (connection == null || connection.getConnectionState() != ConnectionState.OPEN
                 || !hasText(connection.getConnectedNumber())) {
             return new TestMessage(false,
                     "WhatsApp não está conectado — conecte escaneando o QR code");
         }
         try {
-            evolutionApiClient.sendText(GLOBAL_INSTANCE_NAME, decryptKey(connection),
+            evolutionApiClient.sendText(connection.getInstanceName(), decryptKey(connection),
                     connection.getConnectedNumber(), TEST_MESSAGE);
             return new TestMessage(true,
                     "Mensagem de teste enviada para " + connection.getConnectedNumber());
@@ -140,47 +150,56 @@ public class EvolutionConnectionServiceImpl implements EvolutionConnectionManage
     }
 
     /**
-     * Sincroniza state/connectedNumber com a Evolution API (usada na subida).
-     * Falhas não derrubam o boot — apenas loga e mantém o estado persistido.
+     * Sincroniza state/connectedNumber de TODAS as conexões por ADMIN com a
+     * Evolution API (usada na subida). Falhas não derrubam o boot — loga e
+     * segue para as demais.
      */
     void syncStateFromEvolution() {
-        connectionRepository.findFirstByOrderByCreatedAtAsc().ifPresent(connection -> {
+        for (EvolutionConnection connection : connectionRepository.findAllByUserIdNotNull()) {
             if (!hasText(connection.getInstanceApiKey())) {
-                return;
+                continue;
             }
             try {
                 ConnectionStateInfo info =
-                        evolutionApiClient.getConnectionState(GLOBAL_INSTANCE_NAME, decryptKey(connection));
-                applyRemoteState(info);
+                        evolutionApiClient.getConnectionState(connection.getInstanceName(), decryptKey(connection));
+                applyRemoteState(connection, info);
             } catch (Exception ex) {
-                log.warn("evolution_sync_failed instance={} reason={}", GLOBAL_INSTANCE_NAME, ex.getMessage());
+                log.warn("evolution_sync_failed instance={} reason={}",
+                        connection.getInstanceName(), ex.getMessage());
             }
-        });
+        }
     }
 
     @Transactional
-    void applyRemoteState(ConnectionStateInfo info) {
-        connectionRepository.findFirstByOrderByCreatedAtAsc().ifPresent(connection -> {
-            String state = info.state();
-            boolean changed = false;
-            if ("open".equalsIgnoreCase(state)) {
-                String number = EvolutionWebhookHandler.extractNumberFromWuid(info.wuid());
-                changed = connection.getConnectionState() != ConnectionState.OPEN
-                        || !Objects.equals(number, connection.getConnectedNumber());
-                connection.setConnectionState(ConnectionState.OPEN);
-                connection.setConnectedNumber(number);
-                connection.setQrCodeBase64(null);
-            } else if ("close".equalsIgnoreCase(state)) {
-                changed = connection.getConnectionState() != ConnectionState.CLOSE
-                        || connection.getConnectedNumber() != null || connection.getQrCodeBase64() != null;
-                connection.setConnectionState(ConnectionState.CLOSE);
-                connection.setConnectedNumber(null);
-                connection.setQrCodeBase64(null);
-            }
-            if (changed) {
-                connectionRepository.save(connection);
-            }
-        });
+    void applyRemoteState(EvolutionConnection connection, ConnectionStateInfo info) {
+        String state = info.state();
+        boolean changed = false;
+        if ("open".equalsIgnoreCase(state)) {
+            String number = EvolutionWebhookHandler.extractNumberFromWuid(info.wuid());
+            changed = connection.getConnectionState() != ConnectionState.OPEN
+                    || !Objects.equals(number, connection.getConnectedNumber());
+            connection.setConnectionState(ConnectionState.OPEN);
+            connection.setConnectedNumber(number);
+            connection.setQrCodeBase64(null);
+        } else if ("close".equalsIgnoreCase(state)) {
+            changed = connection.getConnectionState() != ConnectionState.CLOSE
+                    || connection.getConnectedNumber() != null || connection.getQrCodeBase64() != null;
+            connection.setConnectionState(ConnectionState.CLOSE);
+            connection.setConnectedNumber(null);
+            connection.setQrCodeBase64(null);
+        }
+        if (changed) {
+            connectionRepository.save(connection);
+        }
+    }
+
+    /**
+     * Nome único da instância por ADMIN: {@code <instanceName>-<8 primeiros
+     * dígitos do userId>} (ex: {@code VGandolfi Dev-3f2a9c1e}). Usado apenas na
+     * auto-criação; conexões pré-cadastradas (seed) usam o nome persistido.
+     */
+    static String uniqueInstanceName(String envInstanceName, UUID userId) {
+        return envInstanceName + "-" + userId.toString().substring(0, 8);
     }
 
     private String buildWebhookUrl() {
@@ -195,7 +214,7 @@ public class EvolutionConnectionServiceImpl implements EvolutionConnectionManage
         try {
             return textEncryptor.decrypt(connection.getInstanceApiKey());
         } catch (Exception ex) {
-            log.error("evolution_api_key_decrypt_failed instance={}", GLOBAL_INSTANCE_NAME, ex);
+            log.error("evolution_api_key_decrypt_failed instance={}", connection.getInstanceName(), ex);
             throw new IllegalStateException("Não foi possível descriptografar o token da instância Evolution", ex);
         }
     }

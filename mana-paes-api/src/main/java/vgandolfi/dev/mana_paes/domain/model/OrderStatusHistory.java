@@ -47,8 +47,8 @@ public class OrderStatusHistory extends BaseEntity {
     @Column(name = "new_status", nullable = false, length = 20)
     private OrderStatus newStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "changed_by", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "changed_by")
     private User changedBy;
 
     @Column(name = "changed_at", nullable = false)

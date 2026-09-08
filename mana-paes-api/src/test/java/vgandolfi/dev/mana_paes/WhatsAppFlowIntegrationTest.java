@@ -29,7 +29,7 @@ class WhatsAppFlowIntegrationTest {
 
     @Test
     void connectSimulateTestAndDisconnect() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.whatsapp@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.whatsapp@example.com", "senha123");
 
         // connect -> CONNECTING com QR fake (data URI SVG)
         mockMvc.perform(post("/api/v1/whatsapp/connect")

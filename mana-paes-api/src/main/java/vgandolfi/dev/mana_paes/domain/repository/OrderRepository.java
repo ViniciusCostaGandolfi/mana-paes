@@ -19,6 +19,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByTenantIdAndDeliveryDate(UUID tenantId, LocalDate deliveryDate);
 
+    List<Order> findByTenantIdAndStatus(UUID tenantId, OrderStatus status);
+
     List<Order> findByTenantIdAndStatusAndDeliveryDate(UUID tenantId, OrderStatus status, LocalDate deliveryDate);
 
     Optional<Order> findByIdAndTenantId(UUID id, UUID tenantId);
@@ -34,12 +36,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findWithItemsAndTenant(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
 
     /**
-     * Agregação de produção: quantidade e valor totais por produto para a
-     * entrega na data informada, excluindo o status informado (CANCELLED).
-     * Retorna linhas {productId, productName, unitMeasure, totalQuantity, totalAmount}.
+     * Agregação de produção: quantidade por turno e valor totais por produto
+     * para a entrega na data informada, excluindo o status informado
+     * (CANCELLED). Retorna linhas {productId, productName, unitMeasure,
+     * sum(manha), sum(tarde), sum(noite), sum(subtotal)}.
      */
     @Query("""
-            select oi.product.id, oi.product.name, oi.product.unitMeasure, sum(oi.quantity), sum(oi.subtotal)
+            select oi.product.id, oi.product.name, oi.product.unitMeasure,
+                   sum(oi.quantidadeManha), sum(oi.quantidadeTarde), sum(oi.quantidadeNoite), sum(oi.subtotal)
             from OrderItem oi
             join oi.order o
             where o.tenant.id = :tenantId and o.deliveryDate = :deliveryDate and o.status <> :excludedStatus
@@ -49,6 +53,21 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Object[]> sumByProductForDate(@Param("tenantId") UUID tenantId,
                                        @Param("deliveryDate") LocalDate deliveryDate,
                                        @Param("excludedStatus") OrderStatus excludedStatus);
+
+    /**
+     * Nomes distintos dos vendedores com pedidos na data, excluindo o status
+     * informado (CANCELLED).
+     */
+    @Query("""
+            select distinct v.name
+            from Order o
+            join o.vendor v
+            where o.tenant.id = :tenantId and o.deliveryDate = :deliveryDate and o.status <> :excludedStatus
+            order by v.name
+            """)
+    List<String> distinctVendorNamesForDate(@Param("tenantId") UUID tenantId,
+                                            @Param("deliveryDate") LocalDate deliveryDate,
+                                            @Param("excludedStatus") OrderStatus excludedStatus);
 
     /**
      * Agregação financeira: {totalOrders, totalAmount} para a entrega na data

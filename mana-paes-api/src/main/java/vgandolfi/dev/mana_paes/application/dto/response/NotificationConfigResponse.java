@@ -16,7 +16,8 @@ public record NotificationConfigResponse(
         String adminEmail,
         LocalTime dailyReportTime,
         boolean whatsappEnabled,
-        boolean emailEnabled) {
+        boolean emailEnabled,
+        boolean dailyReportEnabled) {
 
     public static NotificationConfigResponse from(NotificationConfig config) {
         return new NotificationConfigResponse(
@@ -25,6 +26,7 @@ public record NotificationConfigResponse(
                 config.getAdminEmail(),
                 config.getDailyReportTime(),
                 config.isWhatsappEnabled(),
-                config.isEmailEnabled());
+                config.isEmailEnabled(),
+                config.isDailyReportEnabled());
     }
 }

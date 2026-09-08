@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.request.ProductActiveRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.ProductRequest;
 import vgandolfi.dev.mana_paes.application.dto.response.ProductResponse;
-import vgandolfi.dev.mana_paes.domain.service.ProductService;
+import vgandolfi.dev.mana_paes.application.service.ProductService;
 import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 
 import java.util.UUID;
@@ -49,14 +49,14 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SYS_ADMIN', 'ADMIN')")
     public ResponseEntity<ProductResponse> create(@AuthenticationPrincipal AuthenticatedUser principal,
                                                   @Valid @RequestBody ProductRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(productService.create(principal.tenantId(), request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SYS_ADMIN', 'ADMIN')")
     public ResponseEntity<ProductResponse> update(@AuthenticationPrincipal AuthenticatedUser principal,
                                                   @PathVariable UUID id,
                                                   @Valid @RequestBody ProductRequest request) {
@@ -64,7 +64,7 @@ public class ProductController {
     }
 
     @PatchMapping("/{id}/active")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SYS_ADMIN', 'ADMIN')")
     public ResponseEntity<ProductResponse> setActive(@AuthenticationPrincipal AuthenticatedUser principal,
                                                      @PathVariable UUID id,
                                                      @Valid @RequestBody ProductActiveRequest request) {

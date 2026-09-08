@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,16 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 import vgandolfi.dev.mana_paes.application.dto.request.ForgotPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.LoginRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.RefreshTokenRequest;
-import vgandolfi.dev.mana_paes.application.dto.request.RegisterRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.ResetPasswordRequest;
 import vgandolfi.dev.mana_paes.application.dto.response.LoginResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.UserResponse;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 import vgandolfi.dev.mana_paes.domain.exception.BusinessException;
 import vgandolfi.dev.mana_paes.domain.model.PasswordResetToken;
-import vgandolfi.dev.mana_paes.domain.model.Tenant;
 import vgandolfi.dev.mana_paes.domain.model.User;
-import vgandolfi.dev.mana_paes.domain.model.enums.UserRole;
 import vgandolfi.dev.mana_paes.domain.repository.PasswordResetTokenRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
 import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
@@ -66,36 +63,6 @@ public class AuthService {
         }
         log.info("auth_login_success userId={} tenantId={}", user.getId(), user.getTenant().getId());
         return buildLoginResponse(user);
-    }
-
-    /**
-     * Cria um novo tenant e o primeiro usuário como ROLE_ADMIN (owner do tenant).
-     */
-    @Transactional
-    public LoginResponse register(RegisterRequest request) {
-        String email = normalizeEmail(request.email());
-        if (userRepository.findByEmail(email).isPresent()) {
-            throw new BusinessException("Já existe uma conta com este e-mail");
-        }
-
-        Tenant tenant = new Tenant();
-        tenant.setName(request.name());
-        tenant.setActive(true);
-        Tenant savedTenant = tenantRepository.save(tenant);
-
-        User user = new User();
-        user.setTenant(savedTenant);
-        user.setName(request.name());
-        user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setPhone(request.phone());
-        user.setWhatsappNumber(request.whatsappNumber());
-        user.setRole(UserRole.ROLE_ADMIN);
-        user.setActive(true);
-        User savedUser = userRepository.save(user);
-
-        log.info("auth_register_success userId={} tenantId={}", savedUser.getId(), savedTenant.getId());
-        return buildLoginResponse(savedUser);
     }
 
     @Transactional

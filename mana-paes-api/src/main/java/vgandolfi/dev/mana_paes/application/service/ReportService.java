@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Relatórios diários gerados sob demanda via queries agregadas.
- * A persistência em {@code DailyReport} entra com o scheduler (Fase 5).
+ * Relatórios diários gerados sob demanda via queries agregadas (por turno).
  */
 @Service
 public class ReportService {
@@ -37,14 +36,18 @@ public class ReportService {
                         (String) row[1],
                         (UnitMeasure) row[2],
                         (BigDecimal) row[3],
-                        (BigDecimal) row[4]))
+                        (BigDecimal) row[4],
+                        (BigDecimal) row[5],
+                        ((BigDecimal) row[3]).add((BigDecimal) row[4]).add((BigDecimal) row[5]),
+                        (BigDecimal) row[6]))
                 .toList();
 
         BigDecimal total = items.stream()
                 .map(DailyReportItemResponse::totalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
-        return new DailyProductionReportResponse(date, items, total);
+        List<String> vendorNames = orderRepository.distinctVendorNamesForDate(tenantId, date, OrderStatus.CANCELLED);
+        return new DailyProductionReportResponse(date, items, total, vendorNames);
     }
 
     @Transactional(readOnly = true)

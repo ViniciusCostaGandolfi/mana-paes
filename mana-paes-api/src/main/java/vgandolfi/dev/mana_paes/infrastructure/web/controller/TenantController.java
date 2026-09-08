@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.request.TenantRequest;
 import vgandolfi.dev.mana_paes.application.dto.response.TenantResponse;
-import vgandolfi.dev.mana_paes.domain.service.TenantService;
+import vgandolfi.dev.mana_paes.application.service.TenantService;
 import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 
 @RestController

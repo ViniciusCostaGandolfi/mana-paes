@@ -29,7 +29,7 @@ class ErrorHandlingIntegrationTest {
 
     @Test
     void notFoundReturnsApiError() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.erros@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.erros@example.com", "senha123");
 
         mockMvc.perform(get("/api/v1/orders/" + UUID.randomUUID())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
@@ -40,7 +40,7 @@ class ErrorHandlingIntegrationTest {
 
     @Test
     void emptyItemsValidationReturns400() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.validacao@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.validacao@example.com", "senha123");
 
         mockMvc.perform(post("/api/v1/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -53,7 +53,7 @@ class ErrorHandlingIntegrationTest {
 
     @Test
     void malformedBodyReturns400() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.malformed@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.malformed@example.com", "senha123");
 
         mockMvc.perform(post("/api/v1/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -65,7 +65,7 @@ class ErrorHandlingIntegrationTest {
 
     @Test
     void typeMismatchReturns400() throws Exception {
-        String adminToken = TestSupport.registerAndGetToken(mockMvc, "dona.tipos@example.com", "senha123");
+        String adminToken = TestSupport.adminToken(mockMvc, "dona.tipos@example.com", "senha123");
 
         mockMvc.perform(get("/api/v1/reports/daily/production?date=not-a-date")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))

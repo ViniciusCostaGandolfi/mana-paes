@@ -1,7 +1,6 @@
 package vgandolfi.dev.mana_paes.domain.model.enums;
 
 public enum UserRole {
-    ROLE_ADMIN,
-    ROLE_REQUESTER,
-    ROLE_PRODUCTION
+    ROLE_SYS_ADMIN,
+    ROLE_ADMIN
 }

@@ -3,7 +3,7 @@ package vgandolfi.dev.mana_paes.infrastructure.security;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import tools.jackson.databind.ObjectMapper;
-import vgandolfi.dev.mana_paes.api.exception.ApiError;
+import vgandolfi.dev.mana_paes.infrastructure.web.exception.ApiError;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

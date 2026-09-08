@@ -7,5 +7,6 @@ import java.util.List;
 public record DailyProductionReportResponse(
         LocalDate date,
         List<DailyReportItemResponse> items,
-        BigDecimal totalAmount) {
+        BigDecimal totalAmount,
+        List<String> vendorNames) {
 }

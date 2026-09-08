@@ -87,5 +87,13 @@ app:
     global-api-key: ${EVOLUTION_API_KEY:}
     # Transicao automatica CONNECTING -> OPEN no MOCK (dev/test), em ms.
     mock-connect-delay-ms: 10000
+    # true = imprime mensagens no console (nao envia pelo WhatsApp).
+    mock-send: ${EVOLUTION_MOCK_SEND:false}
+    # Instancia global da Evolution API (padrao: mana-paes).
+    instance-name: ${EVOLUTION_INSTANCE_NAME:mana-paes}
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}
+  system-admin:
+    # Primeiro SYS_ADMIN (SystemAdminInitializer). Em dev/test vem do .env; em prod obrigatorio.
+    email: ${SYSTEM_ADMIN_EMAIL:}
+    password: ${SYSTEM_ADMIN_PASSWORD:}

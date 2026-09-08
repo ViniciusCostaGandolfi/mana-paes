@@ -9,7 +9,7 @@ import vgandolfi.dev.mana_paes.domain.model.NotificationConfig;
 import vgandolfi.dev.mana_paes.domain.model.Tenant;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
-import vgandolfi.dev.mana_paes.domain.service.DailyReportDispatcher;
+import vgandolfi.dev.mana_paes.application.service.DailyReportDispatcher;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -57,7 +57,7 @@ public class DailyReportScheduler {
         List<Tenant> tenants = tenantRepository.findByActiveTrue();
         for (Tenant tenant : tenants) {
             NotificationConfig config = configRepository.findByTenantId(tenant.getId()).orElse(null);
-            if (config == null || config.getDailyReportTime() == null) {
+            if (config == null || config.getDailyReportTime() == null || !config.isDailyReportEnabled()) {
                 continue;
             }
             if (now.isBefore(config.getDailyReportTime())) {

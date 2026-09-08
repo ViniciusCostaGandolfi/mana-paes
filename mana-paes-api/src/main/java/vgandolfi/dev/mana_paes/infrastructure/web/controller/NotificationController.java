@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -23,8 +23,8 @@ import vgandolfi.dev.mana_paes.application.dto.response.NotificationConfigRespon
 import vgandolfi.dev.mana_paes.application.dto.response.NotificationLogResponse;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationChannel;
 import vgandolfi.dev.mana_paes.domain.model.enums.NotificationStatus;
-import vgandolfi.dev.mana_paes.domain.service.DailyReportDispatcher;
-import vgandolfi.dev.mana_paes.domain.service.NotificationConfigService;
+import vgandolfi.dev.mana_paes.application.service.DailyReportDispatcher;
+import vgandolfi.dev.mana_paes.application.service.NotificationConfigService;
 import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 
 import java.time.LocalDate;
@@ -47,14 +47,14 @@ public class NotificationController {
     }
 
     @GetMapping("/config")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYS_ADMIN')")
     public ResponseEntity<NotificationConfigResponse> getConfig(
             @AuthenticationPrincipal AuthenticatedUser principal) {
         return ResponseEntity.ok(configService.getConfig(principal.tenantId()));
     }
 
     @PutMapping("/config")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYS_ADMIN')")
     public ResponseEntity<NotificationConfigResponse> updateConfig(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody NotificationConfigRequest request) {
@@ -78,7 +78,7 @@ public class NotificationController {
     }
 
     @PostMapping("/reports/daily/send")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SYS_ADMIN')")
     public ResponseEntity<DailyReportDispatchResponse> sendDailyReport(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {

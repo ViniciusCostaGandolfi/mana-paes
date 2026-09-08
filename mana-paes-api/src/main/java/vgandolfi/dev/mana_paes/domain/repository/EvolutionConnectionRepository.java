@@ -3,18 +3,24 @@ package vgandolfi.dev.mana_paes.domain.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import vgandolfi.dev.mana_paes.domain.model.EvolutionConnection;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Acesso à conexão WhatsApp GLOBAL (instância única). Como não há
- * {@code tenant_id}, a "linha única" é localizada pela ordem de criação
- * (singleton) ou pelo nome da instância.
+ * Acesso às conexões WhatsApp da Evolution API. Cada ADMIN tem UMA conexão
+ * própria ({@code user_id} único); {@code user_id} nulo representa a conexão
+ * global legada.
  */
 public interface EvolutionConnectionRepository extends JpaRepository<EvolutionConnection, UUID> {
 
-    /** Retorna a conexão global (a primeira criada — singleton). */
+    /** Conexão global legada (a primeira criada sem {@code user_id}). */
     Optional<EvolutionConnection> findFirstByOrderByCreatedAtAsc();
 
     Optional<EvolutionConnection> findByInstanceName(String instanceName);
+
+    Optional<EvolutionConnection> findByUserId(UUID userId);
+
+    /** Todas as conexões por ADMIN (para sincronização de estado na subida). */
+    List<EvolutionConnection> findAllByUserIdNotNull();
 }

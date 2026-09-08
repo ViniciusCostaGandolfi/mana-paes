@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.config;
+package vgandolfi.dev.mana_paes.infrastructure.config;
 
 import java.util.List;
 
@@ -66,7 +66,7 @@ public class SecurityConfig {
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
                         .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/api/v1/auth/**", "/api/v1/webhooks/**").permitAll();
+                    auth.requestMatchers("/api/v1/auth/**", "/api/v1/webhooks/**", "/api/v1/public/**").permitAll();
                     if (h2ConsoleEnabled) {
                         // console H2 somente em dev; frameOptions sameOrigin já libera o frame
                         auth.requestMatchers("/h2-console/**").permitAll();

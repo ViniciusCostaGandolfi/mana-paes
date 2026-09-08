@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.exception;
+package vgandolfi.dev.mana_paes.infrastructure.web.exception;
 
 import java.time.Instant;
 import java.util.List;

@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,14 +38,19 @@ class ReportServiceTest {
         UUID paoId = UUID.randomUUID();
         UUID boloId = UUID.randomUUID();
         List<Object[]> rows = new java.util.ArrayList<>();
-        rows.add(new Object[]{paoId, "Pão Francês", UnitMeasure.UN, new BigDecimal("10"), new BigDecimal("5.00")});
-        rows.add(new Object[]{boloId, "Bolo", UnitMeasure.UN, new BigDecimal("2"), new BigDecimal("50.00")});
+        rows.add(new Object[]{paoId, "Pão Francês", UnitMeasure.UN, new BigDecimal("10"), new BigDecimal("2"), new BigDecimal("0"), new BigDecimal("5.00")});
+        rows.add(new Object[]{boloId, "Bolo", UnitMeasure.UN, new BigDecimal("2"), new BigDecimal("0"), new BigDecimal("0"), new BigDecimal("50.00")});
         when(orderRepository.sumByProductForDate(tenantId, date, OrderStatus.CANCELLED)).thenReturn(rows);
+        when(orderRepository.distinctVendorNamesForDate(tenantId, date, OrderStatus.CANCELLED))
+                .thenReturn(List.of("Everton", "Daiana"));
 
         DailyProductionReportResponse report = reportService.dailyProduction(tenantId, date);
 
         assertThat(report.items()).hasSize(2);
         assertThat(report.items().get(0).productName()).isEqualTo("Pão Francês");
+        assertThat(report.items().get(0).quantidadeManha()).isEqualByComparingTo("10");
+        assertThat(report.items().get(0).quantidadeTarde()).isEqualByComparingTo("2");
+        assertThat(report.items().get(0).totalQuantity()).isEqualByComparingTo("12");
         assertThat(report.totalAmount()).isEqualByComparingTo("55.00");
         verify(orderRepository).sumByProductForDate(tenantId, date, OrderStatus.CANCELLED);
     }
@@ -53,6 +58,7 @@ class ReportServiceTest {
     @Test
     void dailyProductionEmptyReturnsZeroTotal() {
         when(orderRepository.sumByProductForDate(tenantId, date, OrderStatus.CANCELLED)).thenReturn(List.of());
+        when(orderRepository.distinctVendorNamesForDate(tenantId, date, OrderStatus.CANCELLED)).thenReturn(List.of());
 
         DailyProductionReportResponse report = reportService.dailyProduction(tenantId, date);
 

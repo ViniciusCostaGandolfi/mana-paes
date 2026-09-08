@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.request.OrderRequest;
 import vgandolfi.dev.mana_paes.application.dto.request.OrderStatusUpdateRequest;
+import vgandolfi.dev.mana_paes.application.dto.response.MessageResponse;
 import vgandolfi.dev.mana_paes.application.dto.response.OrderResponse;
-import vgandolfi.dev.mana_paes.domain.model.enums.UserRole;
-import vgandolfi.dev.mana_paes.domain.service.OrderService;
+import vgandolfi.dev.mana_paes.application.service.OrderService;
 import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 
 import java.util.UUID;
@@ -36,31 +36,35 @@ public class OrderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'REQUESTER')")
+    @PreAuthorize("hasAnyRole('SYS_ADMIN', 'ADMIN')")
     public ResponseEntity<OrderResponse> create(@AuthenticationPrincipal AuthenticatedUser principal,
                                                 @Valid @RequestBody OrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(orderService.create(principal.tenantId(), principal.userId(), principal.role(), request));
+                .body(orderService.create(principal.tenantId(), principal.userId(), request));
     }
 
     @GetMapping
     public ResponseEntity<Page<OrderResponse>> list(@AuthenticationPrincipal AuthenticatedUser principal,
                                                     @PageableDefault(size = 20, sort = "createdAt",
                                                             direction = Sort.Direction.DESC) Pageable pageable) {
-        Page<OrderResponse> page = principal.role() == UserRole.ROLE_REQUESTER
-                ? orderService.listByRequester(principal.tenantId(), principal.userId(), pageable)
-                : orderService.list(principal.tenantId(), pageable);
-        return ResponseEntity.ok(page);
+        return ResponseEntity.ok(orderService.list(principal.tenantId(), pageable));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getById(@AuthenticationPrincipal AuthenticatedUser principal,
                                                  @PathVariable UUID id) {
-        return ResponseEntity.ok(orderService.getById(principal.tenantId(), principal.userId(), principal.role(), id));
+        return ResponseEntity.ok(orderService.getById(principal.tenantId(), id));
+    }
+
+    @PostMapping("/accept-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<MessageResponse> acceptAll(@AuthenticationPrincipal AuthenticatedUser principal) {
+        int accepted = orderService.acceptAll(principal.tenantId(), principal.userId()).accepted();
+        return ResponseEntity.ok(new MessageResponse(accepted + " pedido(s) aceito(s)"));
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'PRODUCTION')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<OrderResponse> updateStatus(@AuthenticationPrincipal AuthenticatedUser principal,
                                                       @PathVariable UUID id,
                                                       @Valid @RequestBody OrderStatusUpdateRequest request) {

@@ -1,17 +1,19 @@
-package vgandolfi.dev.mana_paes.api.controller;
+package vgandolfi.dev.mana_paes.infrastructure.web.controller;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vgandolfi.dev.mana_paes.application.dto.response.WhatsAppStatus;
+import vgandolfi.dev.mana_paes.infrastructure.security.AuthenticatedUser;
 import vgandolfi.dev.mana_paes.infrastructure.whatsapp.MockEvolutionConnectionServiceImpl;
 
 /**
  * Endpoint EXCLUSIVO do mock de conexão WhatsApp (dev/test): força a conexão
- * para OPEN sem depender de nenhuma Evolution API real.
+ * do usuário para OPEN sem depender de nenhuma Evolution API real.
  *
  * <p>O bean só existe quando {@code app.evolution.url} está em branco — em
  * produção este controller não é registrado.</p>
@@ -28,8 +30,8 @@ public class MockWhatsappController {
     }
 
     @PostMapping("/simulate-scan")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<WhatsAppStatus> simulateScan() {
-        return ResponseEntity.ok(mockService.simulateScan());
+    @PreAuthorize("hasAnyRole('SYS_ADMIN', 'ADMIN')")
+    public ResponseEntity<WhatsAppStatus> simulateScan(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return ResponseEntity.ok(mockService.simulateScan(principal.userId()));
     }
 }

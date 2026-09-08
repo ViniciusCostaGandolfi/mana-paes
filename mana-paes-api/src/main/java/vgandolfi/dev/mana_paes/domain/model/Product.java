@@ -1,5 +1,6 @@
 package vgandolfi.dev.mana_paes.domain.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -58,6 +59,14 @@ public class Product extends BaseEntity {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<ProductOptionGroup> optionGroups = new ArrayList<>();
+
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY)
     private List<OrderItem> orderItems = new ArrayList<>();
+
+    public void addOptionGroup(ProductOptionGroup group) {
+        optionGroups.add(group);
+        group.setProduct(this);
+    }
 }

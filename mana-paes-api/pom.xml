@@ -226,8 +226,8 @@
 								<rule>
 									<element>PACKAGE</element>
 									<includes>
-										<include>vgandolfi.dev.mana_paes.domain.service</include>
-										<include>vgandolfi.dev.mana_paes.api.controller</include>
+										<include>vgandolfi.dev.mana_paes.application.service</include>
+										<include>vgandolfi.dev.mana_paes.infrastructure.web.controller</include>
 										<include>vgandolfi.dev.mana_paes.infrastructure.notification</include>
 										<include>vgandolfi.dev.mana_paes.infrastructure.scheduler</include>
 										<include>vgandolfi.dev.mana_paes.infrastructure.webhook</include>

@@ -21,8 +21,8 @@ public class LoggingOrderEventPublisher implements OrderEventPublisher {
 
     @Override
     public void publish(OrderCreatedEvent event) {
-        log.info("order_created_event orderId={} tenantId={} requesterId={} totalAmount={} deliveryDate={} itemCount={}",
-                event.orderId(), event.tenantId(), event.requesterId(),
+        log.info("order_created_event orderId={} tenantId={} vendor={} vendorPhone={} totalAmount={} deliveryDate={} itemCount={}",
+                event.orderId(), event.tenantId(), event.vendorName(), event.vendorPhone(),
                 event.totalAmount(), event.deliveryDate(), event.items().size());
     }
 }

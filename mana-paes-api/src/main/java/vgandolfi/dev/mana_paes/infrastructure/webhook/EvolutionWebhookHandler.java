@@ -102,7 +102,13 @@ public class EvolutionWebhookHandler {
         if (instanceName == null || instanceName.isBlank()) {
             return null;
         }
-        return connectionRepository.findByInstanceName(instanceName).orElse(null);
+        return connectionRepository.findByInstanceName(instanceName)
+                .orElseGet(() -> {
+                    // instância desconhecida (ex.: webhook de admin sem conexão
+                    // persistida) — nunca corrompe a conexão de outro admin
+                    log.warn("evolution_webhook_instance_unknown instance={} (ignorado)", instanceName);
+                    return null;
+                });
     }
 
     /**

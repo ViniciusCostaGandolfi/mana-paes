@@ -13,6 +13,8 @@ public record OrderResponse(
         UUID id,
         UUID requesterId,
         String requesterName,
+        UUID vendorId,
+        String vendorName,
         UUID tenantId,
         Instant createdAt,
         LocalDate deliveryDate,
@@ -23,8 +25,10 @@ public record OrderResponse(
     public static OrderResponse from(Order order) {
         return new OrderResponse(
                 order.getId(),
-                order.getRequester().getId(),
-                order.getRequester().getName(),
+                order.getRequester() != null ? order.getRequester().getId() : null,
+                order.getRequester() != null ? order.getRequester().getName() : null,
+                order.getVendor() != null ? order.getVendor().getId() : null,
+                order.getVendor() != null ? order.getVendor().getName() : null,
                 order.getTenant().getId(),
                 order.getCreatedAt(),
                 order.getDeliveryDate(),

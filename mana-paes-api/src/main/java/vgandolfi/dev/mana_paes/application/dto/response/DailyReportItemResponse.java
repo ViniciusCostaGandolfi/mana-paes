@@ -9,6 +9,9 @@ public record DailyReportItemResponse(
         UUID productId,
         String productName,
         UnitMeasure unitMeasure,
+        BigDecimal quantidadeManha,
+        BigDecimal quantidadeTarde,
+        BigDecimal quantidadeNoite,
         BigDecimal totalQuantity,
         BigDecimal totalAmount) {
 }

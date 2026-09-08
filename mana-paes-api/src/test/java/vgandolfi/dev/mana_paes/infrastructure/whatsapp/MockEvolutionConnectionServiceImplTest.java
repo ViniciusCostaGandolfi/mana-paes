@@ -2,27 +2,32 @@ package vgandolfi.dev.mana_paes.infrastructure.whatsapp;
 
 import org.junit.jupiter.api.Test;
 import vgandolfi.dev.mana_paes.application.dto.response.WhatsAppStatus;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Mock da conexão WhatsApp (dev/test): simula o fluxo completo em memória —
- * connect → CONNECTING + QR fake → (simulate-scan ou auto) → OPEN com número
- * fixo → disconnect → CLOSE. Nenhuma chamada externa (sem colaboradores).
+ * Mock da conexão WhatsApp (dev/test): simula o fluxo completo em memória POR
+ * USUÁRIO — connect → CONNECTING + QR fake → (simulate-scan ou auto) → OPEN →
+ * disconnect → CLOSE. Nenhuma chamada externa.
  */
 class MockEvolutionConnectionServiceImplTest {
+
+    private final UUID userId = UUID.randomUUID();
 
     private MockEvolutionConnectionServiceImpl mock(long delayMs) {
         AppProperties props = new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-test-secret-1234", 3600000L, 86400000L),
                 new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
-                new AppProperties.Evolution("", "", delayMs),
+                new AppProperties.Evolution("", "", delayMs, "mana-paes", false),
                 new AppProperties.Backend(""),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(false),
                 new AppProperties.Notifications(false, 2),
-                new AppProperties.Scheduler(false));
+                new AppProperties.Scheduler(false),
+                new AppProperties.SystemAdmin("vinicius@vgandolfi.dev", "admin123"));
         return new MockEvolutionConnectionServiceImpl(props);
     }
 
@@ -30,7 +35,7 @@ class MockEvolutionConnectionServiceImplTest {
     void startConnectionEntersConnectingWithFakeQr() {
         MockEvolutionConnectionServiceImpl mock = mock(60_000);
 
-        WhatsAppStatus status = mock.startConnection();
+        WhatsAppStatus status = mock.startConnection(userId);
 
         assertThat(status.state()).isEqualTo("CONNECTING");
         assertThat(status.qrCodeBase64()).isEqualTo(MockEvolutionConnectionServiceImpl.MOCK_QR_DATA_URI);
@@ -41,9 +46,9 @@ class MockEvolutionConnectionServiceImplTest {
     @Test
     void simulateScanForcesOpenWithMockNumber() {
         MockEvolutionConnectionServiceImpl mock = mock(60_000);
-        mock.startConnection();
+        mock.startConnection(userId);
 
-        WhatsAppStatus status = mock.simulateScan();
+        WhatsAppStatus status = mock.simulateScan(userId);
 
         assertThat(status.state()).isEqualTo("OPEN");
         assertThat(status.connectedNumber()).isEqualTo(MockEvolutionConnectionServiceImpl.MOCK_CONNECTED_NUMBER);
@@ -53,11 +58,11 @@ class MockEvolutionConnectionServiceImplTest {
     @Test
     void disconnectReturnsToClose() {
         MockEvolutionConnectionServiceImpl mock = mock(60_000);
-        mock.startConnection();
-        mock.simulateScan();
+        mock.startConnection(userId);
+        mock.simulateScan(userId);
 
-        mock.disconnect();
-        WhatsAppStatus status = mock.getStatus();
+        mock.disconnect(userId);
+        WhatsAppStatus status = mock.getStatus(userId);
 
         assertThat(status.state()).isEqualTo("CLOSE");
         assertThat(status.connectedNumber()).isNull();
@@ -68,27 +73,40 @@ class MockEvolutionConnectionServiceImplTest {
     void testConnectionSucceedsWhenOpenAndFailsWhenClosed() {
         MockEvolutionConnectionServiceImpl mock = mock(60_000);
 
-        EvolutionConnectionManager.TestMessage closed = mock.testConnection();
+        EvolutionConnectionManager.TestMessage closed = mock.testConnection(userId);
         assertThat(closed.success()).isFalse();
 
-        mock.startConnection();
-        mock.simulateScan();
+        mock.startConnection(userId);
+        mock.simulateScan(userId);
 
-        EvolutionConnectionManager.TestMessage open = mock.testConnection();
+        EvolutionConnectionManager.TestMessage open = mock.testConnection(userId);
         assertThat(open.success()).isTrue();
         assertThat(open.message()).contains("5511999999999");
     }
 
     @Test
+    void stateIsIsolatedPerUser() {
+        MockEvolutionConnectionServiceImpl mock = mock(60_000);
+        UUID otherUserId = UUID.randomUUID();
+
+        mock.startConnection(userId);
+        mock.simulateScan(userId);
+
+        // outro usuário nunca conectou: CLOSE
+        assertThat(mock.getStatus(otherUserId).state()).isEqualTo("CLOSE");
+        // usuário conectado: OPEN
+        assertThat(mock.getStatus(userId).state()).isEqualTo("OPEN");
+    }
+
+    @Test
     void autoTransitionToOpenAfterConfiguredDelay() throws InterruptedException {
         MockEvolutionConnectionServiceImpl mock = mock(0);
-        mock.startConnection();
+        mock.startConnection(userId);
 
-        // com delay 0, a transição automática deve abrir a conexão em pouco tempo
         WhatsAppStatus status = null;
         long deadline = System.currentTimeMillis() + 2_000;
         while (System.currentTimeMillis() < deadline) {
-            status = mock.getStatus();
+            status = mock.getStatus(userId);
             if ("OPEN".equals(status.state())) {
                 break;
             }
@@ -103,12 +121,12 @@ class MockEvolutionConnectionServiceImplTest {
     @Test
     void negativeDelayIsTreatedAsZero() throws InterruptedException {
         MockEvolutionConnectionServiceImpl mock = mock(-5);
-        mock.startConnection();
+        mock.startConnection(userId);
 
         WhatsAppStatus status = null;
         long deadline = System.currentTimeMillis() + 2_000;
         while (System.currentTimeMillis() < deadline) {
-            status = mock.getStatus();
+            status = mock.getStatus(userId);
             if ("OPEN".equals(status.state())) {
                 break;
             }

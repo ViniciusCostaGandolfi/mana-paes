@@ -68,8 +68,15 @@ app:
     url: ${EVOLUTION_API_URL:}
     global-api-key: ${EVOLUTION_API_KEY:}
     mock-connect-delay-ms: 10000
+    mock-send: ${EVOLUTION_MOCK_SEND:true}
+    # Instancia global da Evolution API (padrao: mana-paes).
+    instance-name: ${EVOLUTION_INSTANCE_NAME:mana-paes}
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}
+  system-admin:
+    # SYS_ADMIN de dev (SystemAdminInitializer): mesmas credenciais usadas pelos testes de integracao.
+    email: ${SYSTEM_ADMIN_EMAIL:vinicius@vgandolfi.dev}
+    password: ${SYSTEM_ADMIN_PASSWORD:admin123}
 
 
 springdoc:

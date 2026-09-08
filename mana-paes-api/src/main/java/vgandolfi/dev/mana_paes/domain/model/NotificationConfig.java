@@ -45,8 +45,11 @@ public class NotificationConfig extends BaseEntity {
     private LocalTime dailyReportTime = LocalTime.of(18, 0);
 
     @Column(name = "whatsapp_enabled", nullable = false)
-    private boolean whatsappEnabled = false;
+    private boolean whatsappEnabled = true;
 
     @Column(name = "email_enabled", nullable = false)
-    private boolean emailEnabled = true;
+    private boolean emailEnabled = false;
+
+    @Column(name = "daily_report_enabled", nullable = false)
+    private boolean dailyReportEnabled = true;
 }

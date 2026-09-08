@@ -5,7 +5,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 import vgandolfi.dev.mana_paes.domain.model.User;
 
 import javax.crypto.SecretKey;
@@ -49,16 +49,19 @@ public class JwtService {
 
     public String generateAccessToken(User user) {
         Instant now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(user.getId().toString())
-                .claim(CLAIM_EMAIL, user.getEmail())
+                // motoboy pode não ter e-mail (cadastro apenas com telefone)
                 .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_TENANT_ID, user.getTenant().getId().toString())
                 .claim(CLAIM_TOKEN_TYPE, TOKEN_TYPE_ACCESS)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(appProperties.jwt().expiration())))
-                .signWith(signingKey, Jwts.SIG.HS256)
-                .compact();
+                .signWith(signingKey, Jwts.SIG.HS256);
+        if (user.getEmail() != null) {
+            builder.claim(CLAIM_EMAIL, user.getEmail());
+        }
+        return builder.compact();
     }
 
     public String generateRefreshToken(User user) {

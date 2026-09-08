@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,13 +19,14 @@ import vgandolfi.dev.mana_paes.domain.model.enums.ConnectionState;
 import java.util.UUID;
 
 /**
- * Conexão WhatsApp global da aplicação (instância única "mana-paes" da
- * Evolution API), compartilhada por todos os tenants.
+ * Conexão WhatsApp da Evolution API — UMA por usuário ADMIN (instância
+ * própria). {@code user_id} é nullable para suportar a conexão global legada
+ * (sem dono); quando presente, é único (1 instância por admin).
  *
- * <p>É um SINGLETON global: não possui {@code tenant_id}. A linha é criada na
- * primeira conexão (admin escaneia o QR) e reaproveitada nas seguintes. O
- * {@code instance_api_key} (token da instância) é armazenado CRIPTOGRAFADO
- * (AES-256/GCM via {@code TextEncryptor}); nunca em texto puro.</p>
+ * <p>O {@code instance_name} é único e pode ser derivado do userId
+ * (auto-criado na produção) ou pré-cadastrado pelo seed (ex: "VGandolfi Dev"
+ * do env). O {@code instance_api_key} (token da instância) é armazenado
+ * CRIPTOGRAFADO (AES-256/GCM via {@code TextEncryptor}); nunca em texto puro.</p>
  */
 @Getter
 @Setter
@@ -36,7 +40,12 @@ public class EvolutionConnection extends BaseEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    /** Nome fixo da instância global ("mana-paes"). */
+    /** Dono da conexão (ADMIN). Nulo apenas para a conexão global legada. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
+    private User user;
+
+    /** Nome da instância na Evolution API (único). */
     @Column(name = "instance_name", nullable = false, unique = true, length = 100)
     private String instanceName;
 

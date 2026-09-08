@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +20,7 @@ import vgandolfi.dev.mana_paes.domain.model.enums.NotificationType;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationLogRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,9 +73,10 @@ class NotificationConfigServiceTest {
 
         NotificationConfigResponse response = service().getConfig(tenantId);
 
-        assertThat(response.whatsappEnabled()).isFalse();
-        assertThat(response.emailEnabled()).isTrue();
+        assertThat(response.whatsappEnabled()).isTrue();
+        assertThat(response.emailEnabled()).isFalse();
         assertThat(response.dailyReportTime()).isEqualTo(LocalTime.of(18, 0));
+        assertThat(response.dailyReportEnabled()).isTrue();
         verify(configRepository).save(any(NotificationConfig.class));
     }
 
@@ -84,12 +87,53 @@ class NotificationConfigServiceTest {
         when(configRepository.save(any(NotificationConfig.class))).thenAnswer(inv -> inv.getArgument(0));
 
         NotificationConfigResponse response = service().updateConfig(tenantId,
-                new NotificationConfigRequest("5511999999999", null, null, true, null));
+                new NotificationConfigRequest("5511999999999", null, null, true, null, null));
 
         assertThat(response.adminWhatsappNumber()).isEqualTo("5511999999999");
         assertThat(response.whatsappEnabled()).isTrue();
-        assertThat(response.emailEnabled()).isTrue(); // inalterado
+        assertThat(response.emailEnabled()).isFalse(); // inalterado
         assertThat(response.dailyReportTime()).isEqualTo(LocalTime.of(18, 0)); // inalterado
+        assertThat(response.dailyReportEnabled()).isTrue(); // inalterado
+    }
+
+    @Test
+    void updateConfigSetsDailyReportEnabledTrueAndPersists() {
+        NotificationConfig config = config();
+        config.setDailyReportEnabled(false);
+        when(configRepository.findByTenantId(tenantId)).thenReturn(Optional.of(config));
+        when(configRepository.save(any(NotificationConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        NotificationConfigResponse response = service().updateConfig(tenantId,
+                new NotificationConfigRequest(null, null, null, null, null, true));
+
+        assertThat(response.dailyReportEnabled()).isTrue();
+        verify(configRepository).save(argThat(saved -> saved.isDailyReportEnabled()));
+    }
+
+    @Test
+    void updateConfigSetsDailyReportEnabledFalseAndPersists() {
+        NotificationConfig config = config();
+        when(configRepository.findByTenantId(tenantId)).thenReturn(Optional.of(config));
+        when(configRepository.save(any(NotificationConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        NotificationConfigResponse response = service().updateConfig(tenantId,
+                new NotificationConfigRequest(null, null, null, null, null, false));
+
+        assertThat(response.dailyReportEnabled()).isFalse();
+        verify(configRepository).save(argThat(saved -> !saved.isDailyReportEnabled()));
+    }
+
+    @Test
+    void updateConfigDoesNotChangeDailyReportEnabledWhenNull() {
+        NotificationConfig config = config();
+        config.setDailyReportEnabled(false);
+        when(configRepository.findByTenantId(tenantId)).thenReturn(Optional.of(config));
+        when(configRepository.save(any(NotificationConfig.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        NotificationConfigResponse response = service().updateConfig(tenantId,
+                new NotificationConfigRequest("5511999999999", null, null, null, null, null));
+
+        assertThat(response.dailyReportEnabled()).isFalse(); // inalterado
     }
 
     @Test

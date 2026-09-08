@@ -3,7 +3,7 @@ package vgandolfi.dev.mana_paes.infrastructure.security;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import org.junit.jupiter.api.Test;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 import vgandolfi.dev.mana_paes.domain.model.Tenant;
 import vgandolfi.dev.mana_paes.domain.model.User;
 import vgandolfi.dev.mana_paes.domain.model.enums.UserRole;
@@ -21,12 +21,13 @@ class JwtServiceTest {
         return new AppProperties(
                 new AppProperties.Jwt(SECRET, expirationMs, 86400000L),
                 new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
-                new AppProperties.Evolution("", "", 0L),
+                new AppProperties.Evolution("", "", 0L, "mana-paes", false),
                 new AppProperties.Backend("http://localhost:8080"),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(false),
                 new AppProperties.Notifications(false, 2),
-                new AppProperties.Scheduler(false));
+                new AppProperties.Scheduler(false),
+                new AppProperties.SystemAdmin("vinicius@vgandolfi.dev", "admin123"));
     }
 
     private User user(UUID id) {

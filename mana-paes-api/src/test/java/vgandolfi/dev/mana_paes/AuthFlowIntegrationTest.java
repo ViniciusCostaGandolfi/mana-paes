@@ -9,9 +9,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
-import vgandolfi.dev.mana_paes.domain.model.PasswordResetToken;
-import vgandolfi.dev.mana_paes.domain.repository.PasswordResetTokenRepository;
 
 import java.nio.charset.StandardCharsets;
 
@@ -22,8 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Smoke test de integração do fluxo de autenticação e autorização:
- * register → login → acesso autenticado a /api/v1/users, 401 sem token,
- * 403 para REQUESTER em endpoint de ADMIN, e fluxo forgot/reset de senha.
+ * login do SYS_ADMIN (criado pelo SystemAdminInitializer via env), acesso
+ * autenticado a /api/v1/users, 401 sem token, e RBAC de criação de usuários
+ * (apenas SYS_ADMIN cria; ADMIN recebe 400 no service).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,39 +30,23 @@ class AuthFlowIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-
     @Test
-    void registerLoginAndListUsers() throws Exception {
-        MvcResult registerResult = mockMvc.perform(post("/api/v1/auth/register")
+    void sysAdminLoginAndListUsers() throws Exception {
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"João da Padaria","email":"joao@example.com","password":"senha123","phone":"11988887777","whatsappNumber":"11988887777"}
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
-                .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.user.email").value("joao@example.com"))
-                .andExpect(jsonPath("$.user.role").value("ROLE_ADMIN"))
-                .andReturn();
-
-        String accessToken = JsonPath.read(
-                registerResult.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
-
-        mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"joao@example.com\",\"password\":\"senha123\"}"))
+                        .content("{\"email\":\"vinicius@vgandolfi.dev\",\"password\":\"admin123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.user.email").value("joao@example.com"));
+                .andExpect(jsonPath("$.user.email").value("vinicius@vgandolfi.dev"))
+                .andExpect(jsonPath("$.user.role").value("ROLE_SYS_ADMIN"))
+                .andReturn();
+        String accessToken = JsonPath.read(
+                loginResult.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
 
         mockMvc.perform(get("/api/v1/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.content[0].email").value("joao@example.com"));
+                .andExpect(jsonPath("$.content").isArray());
 
         // sem token, endpoint protegido retorna 401
         mockMvc.perform(get("/api/v1/users"))
@@ -73,10 +55,8 @@ class AuthFlowIntegrationTest {
 
     @Test
     void loginWithWrongPasswordReturns401() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Maria Oliveira\",\"email\":\"maria@example.com\",\"password\":\"senha123\"}"))
-                .andExpect(status().isCreated());
+        // garante que o SYS_ADMIN de env existe e cria um ADMIN para o teste
+        String adminToken = TestSupport.adminToken(mockMvc, "maria@example.com", "senha123");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,54 +64,23 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.message").value("Credenciais inválidas"));
+
+        // admin logado consegue acessar /users do próprio tenant
+        mockMvc.perform(get("/api/v1/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
     }
 
     @Test
-    @Transactional
-    void requesterGetsForbiddenOnAdminEndpoint() throws Exception {
-        // 1. admin registra (auto-cria tenant) e cria um ROLE_REQUESTER no mesmo tenant
-        MvcResult adminResult = mockMvc.perform(post("/api/v1/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Dona Padaria\",\"email\":\"dona@example.com\",\"password\":\"senha123\"}"))
-                .andExpect(status().isCreated())
-                .andReturn();
-        String adminToken = JsonPath.read(
-                adminResult.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
+    void adminCannotCreateUsers() throws Exception {
+        // ADMIN autenticado tenta criar um usuário -> 400 (apenas SYS_ADMIN cria)
+        String adminToken = TestSupport.adminToken(mockMvc, "dona@example.com", "senha123");
 
         mockMvc.perform(post("/api/v1/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Funcionario\",\"email\":\"funcionario@example.com\",\"role\":\"ROLE_REQUESTER\"}"))
-                .andExpect(status().isCreated());
-
-        // 2. admin dispara recuperação de senha do REQUESTER (email desabilitado em dev: token fica no banco)
-        mockMvc.perform(post("/api/v1/auth/forgot-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"funcionario@example.com\"}"))
-                .andExpect(status().isOk());
-
-        PasswordResetToken resetToken = passwordResetTokenRepository.findAll().stream()
-                .filter(t -> "funcionario@example.com".equals(t.getUser().getEmail()) && !t.isUsed())
-                .findFirst()
-                .orElseThrow();
-
-        // 3. define senha conhecida para o requester
-        mockMvc.perform(post("/api/v1/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + resetToken.getToken() + "\",\"password\":\"nova123\"}"))
-                .andExpect(status().isOk());
-
-        // 4. login como REQUESTER e tenta listar usuários -> 403
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"funcionario@example.com\",\"password\":\"nova123\"}"))
-                .andExpect(status().isOk())
-                .andReturn();
-        String requesterToken = JsonPath.read(
-                loginResult.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
-
-        mockMvc.perform(get("/api/v1/users")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + requesterToken))
-                .andExpect(status().isForbidden());
+                        .content("{\"name\":\"Outro\",\"email\":\"outro.admin@example.com\",\"password\":\"senha123\",\"role\":\"ROLE_ADMIN\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Papel não autorizado a criar usuários"));
     }
 }

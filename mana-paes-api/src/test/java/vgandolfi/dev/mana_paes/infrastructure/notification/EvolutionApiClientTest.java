@@ -9,7 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
-import vgandolfi.dev.mana_paes.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
+import vgandolfi.dev.mana_paes.infrastructure.evolution.EvolutionClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,12 +48,13 @@ class EvolutionApiClientTest {
         return new AppProperties(
                 new AppProperties.Jwt("test-secret-test-secret-test-secret-test-secret-1234", 3600000L, 86400000L),
                 new AppProperties.Encryption("mana-paes-test-master-key-32chars!"),
-                new AppProperties.Evolution(url, globalKey, 0L),
+                new AppProperties.Evolution(url, globalKey, 0L, "mana-paes", false),
                 new AppProperties.Backend(""),
                 new AppProperties.Frontend("http://localhost"),
                 new AppProperties.Mail(false),
                 new AppProperties.Notifications(false, 2),
-                new AppProperties.Scheduler(false));
+                new AppProperties.Scheduler(false),
+                new AppProperties.SystemAdmin("vinicius@vgandolfi.dev", "admin123"));
     }
 
     private EvolutionApiClient client() {
@@ -185,7 +187,7 @@ class EvolutionApiClientTest {
     void getConnectionStateParsesTopLevelStateAndWuid() throws Exception {
         stubGet(MAPPER.readTree("{\"state\":\"open\",\"wuid\":\"5511999999999@s.whatsapp.net\"}"));
 
-        EvolutionApiClient.ConnectionStateInfo info = client().getConnectionState("mana-paes", "token");
+        EvolutionClient.ConnectionStateInfo info = client().getConnectionState("mana-paes", "token");
 
         assertThat(info.state()).isEqualTo("open");
         assertThat(info.wuid()).isEqualTo("5511999999999@s.whatsapp.net");
@@ -195,7 +197,7 @@ class EvolutionApiClientTest {
     void getConnectionStateFallsBackToNestedInstance() throws Exception {
         stubGet(MAPPER.readTree("{\"instance\":{\"state\":\"close\",\"wuid\":\"5511888888888@s.whatsapp.net\"}}"));
 
-        EvolutionApiClient.ConnectionStateInfo info = client().getConnectionState("mana-paes", "token");
+        EvolutionClient.ConnectionStateInfo info = client().getConnectionState("mana-paes", "token");
 
         assertThat(info.state()).isEqualTo("close");
         assertThat(info.wuid()).isEqualTo("5511888888888@s.whatsapp.net");

@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import vgandolfi.dev.mana_paes.domain.model.User;
+import vgandolfi.dev.mana_paes.domain.model.enums.UserRole;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,4 +23,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByIdAndTenantId(UUID id, UUID tenantId);
 
     boolean existsByTenantIdAndEmail(UUID tenantId, String email);
+
+    boolean existsByRole(UserRole role);
+
+    List<User> findByTenantIdAndRoleAndActiveTrue(UUID tenantId, UserRole role);
 }

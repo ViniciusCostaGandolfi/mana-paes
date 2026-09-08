@@ -5,8 +5,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import vgandolfi.dev.mana_paes.domain.model.PasswordResetToken;
-import vgandolfi.dev.mana_paes.domain.repository.PasswordResetTokenRepository;
 
 import java.nio.charset.StandardCharsets;
 
@@ -14,51 +12,46 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Helpers de apoio aos testes de integração (fluxo de autenticação).
+ * Helpers de apoio aos testes de integração.
+ *
+ * <p>O primeiro {@code SYS_ADMIN} é criado pelo {@code SystemAdminInitializer}
+ * a partir do env ({@code app.system-admin.email/password}), em todos os
+ * perfis — nos testes usa as credenciais default do perfil dev. Admins são
+ * criados pelo SYS_ADMIN em tenants novos; vendedores (sem login) são
+ * cadastrados pelo ADMIN via {@code /api/v1/vendors}.</p>
  */
 final class TestSupport {
+
+    static final String SYS_ADMIN_EMAIL = "vinicius@vgandolfi.dev";
+    static final String SYS_ADMIN_PASSWORD = "admin123";
 
     private TestSupport() {
     }
 
     /**
-     * Registra um novo admin (auto-cria tenant) e retorna o access token.
+     * Login como o SYS_ADMIN criado pelo {@code SystemAdminInitializer}.
      */
-    static String registerAndGetToken(MockMvc mockMvc, String email, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+    static String sysAdminToken(MockMvc mockMvc) throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Teste\",\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
-                .andExpect(status().isCreated())
+                        .content("{\"email\":\"" + SYS_ADMIN_EMAIL + "\",\"password\":\""
+                                + SYS_ADMIN_PASSWORD + "\"}"))
+                .andExpect(status().isOk())
                 .andReturn();
-        return JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
+        return JsonPath.read(login.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
     }
 
     /**
-     * Admin cria um usuário ROLE_REQUESTER no mesmo tenant, define uma senha
-     * conhecida via fluxo forgot/reset-password e retorna o access token dele.
+     * SYS_ADMIN cria um ADMIN em um tenant novo e retorna o access token dele.
      */
-    static String createRequesterAndGetToken(MockMvc mockMvc, PasswordResetTokenRepository tokenRepository,
-                                             String adminToken, String name, String email, String password)
-            throws Exception {
+    static String createAdminAndGetToken(MockMvc mockMvc, String sysAdminToken,
+                                         String name, String email, String password) throws Exception {
         mockMvc.perform(post("/api/v1/users")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sysAdminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"" + name + "\",\"email\":\"" + email + "\",\"role\":\"ROLE_REQUESTER\"}"))
+                        .content("{\"name\":\"" + name + "\",\"email\":\"" + email
+                                + "\",\"password\":\"" + password + "\",\"role\":\"ROLE_ADMIN\"}"))
                 .andExpect(status().isCreated());
-
-        mockMvc.perform(post("/api/v1/auth/forgot-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\"}"))
-                .andExpect(status().isOk());
-
-        PasswordResetToken resetToken = tokenRepository
-                .findFirstByUser_EmailAndUsedFalseOrderByCreatedAtDesc(email)
-                .orElseThrow();
-
-        mockMvc.perform(post("/api/v1/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + resetToken.getToken() + "\",\"password\":\"" + password + "\"}"))
-                .andExpect(status().isOk());
 
         MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -66,5 +59,26 @@ final class TestSupport {
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.accessToken");
+    }
+
+    /**
+     * Login do SYS_ADMIN + ADMIN novo em tenant isolado (e-mail fixo por teste).
+     */
+    static String adminToken(MockMvc mockMvc, String email, String password) throws Exception {
+        String sysAdminToken = sysAdminToken(mockMvc);
+        return createAdminAndGetToken(mockMvc, sysAdminToken, "Admin " + email, email, password);
+    }
+
+    /**
+     * ADMIN cadastra um vendedor e retorna o id dele.
+     */
+    static String createVendor(MockMvc mockMvc, String adminToken, String name, String phone) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/vendors")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + name + "\",\"phone\":\"" + phone + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.id");
     }
 }

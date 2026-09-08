@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,70 +43,104 @@ class UserServiceTest {
     private final UUID tenantId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();
 
-    private User user(String email) {
+    private User user(String email, UserRole role) {
         User user = new User();
         user.setId(userId);
         user.setEmail(email);
-        user.setRole(UserRole.ROLE_REQUESTER);
+        user.setRole(role);
         user.setTenant(new Tenant());
         user.getTenant().setId(tenantId);
         return user;
     }
 
-    private UserRequest request(String email) {
-        return new UserRequest("Funcionário", email, null, null, UserRole.ROLE_REQUESTER);
+    private UserRequest adminRequest(String email, String password) {
+        return new UserRequest("Novo Admin", email, null, null, UserRole.ROLE_ADMIN, password);
     }
 
     @Test
-    void createWithDuplicateEmailThrows() {
-        when(userRepository.existsByTenantIdAndEmail(tenantId, "dup@example.com")).thenReturn(true);
-
-        assertThatThrownBy(() -> userService.create(tenantId, request("Dup@Example.com")))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Já existe um usuário");
-    }
-
-    @Test
-    void createEncodesTemporaryPasswordAndSaves() {
-        Tenant tenant = new Tenant();
-        tenant.setId(tenantId);
-        when(userRepository.existsByTenantIdAndEmail(tenantId, "novo@example.com")).thenReturn(false);
-        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
-        when(passwordEncoder.encode(anyString())).thenReturn("temporary-hash");
+    void sysAdminCreatesAdminWithNewTenant() {
+        when(userRepository.findByEmail("novo@example.com")).thenReturn(Optional.empty());
+        when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
+            Tenant tenant = inv.getArgument(0);
+            tenant.setId(UUID.randomUUID());
+            return tenant;
+        });
+        when(passwordEncoder.encode(anyString())).thenReturn("hash");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UserResponse response = userService.create(tenantId, request("novo@example.com"));
+        UserResponse response = userService.create(UUID.randomUUID(), UserRole.ROLE_SYS_ADMIN,
+                adminRequest("novo@example.com", "senha123"));
 
-        assertThat(response.role()).isEqualTo(UserRole.ROLE_REQUESTER);
+        assertThat(response.role()).isEqualTo(UserRole.ROLE_ADMIN);
+        assertThat(response.active()).isTrue();
+        ArgumentCaptor<Tenant> tenantCaptor = ArgumentCaptor.forClass(Tenant.class);
+        verify(tenantRepository).save(tenantCaptor.capture());
+        assertThat(tenantCaptor.getValue().isActive()).isTrue();
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
-        assertThat(captor.getValue().getPasswordHash()).isEqualTo("temporary-hash");
-        assertThat(captor.getValue().getEmail()).isEqualTo("novo@example.com");
+        assertThat(captor.getValue().getPasswordHash()).isEqualTo("hash");
     }
 
     @Test
-    void createWithMissingTenantThrows() {
-        when(userRepository.existsByTenantIdAndEmail(tenantId, "novo@example.com")).thenReturn(false);
-        when(tenantRepository.findById(tenantId)).thenReturn(Optional.empty());
+    void sysAdminCannotCreateSysAdmin() {
+        UserRequest request = new UserRequest("Outro", "outro@example.com", null, null,
+                UserRole.ROLE_SYS_ADMIN, "senha123");
 
-        assertThatThrownBy(() -> userService.create(tenantId, request("novo@example.com")))
-                .isInstanceOf(EntityNotFoundException.class);
+        assertThatThrownBy(() -> userService.create(UUID.randomUUID(), UserRole.ROLE_SYS_ADMIN, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("SYS_ADMIN só pode criar usuários ROLE_ADMIN");
+    }
+
+    @Test
+    void adminCannotCreateUsers() {
+        assertThatThrownBy(() -> userService.create(UUID.randomUUID(), UserRole.ROLE_ADMIN,
+                adminRequest("x@example.com", "senha123")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("não autorizado");
+    }
+
+    @Test
+    void sysAdminCreatingAdminWithoutEmailThrows() {
+        assertThatThrownBy(() -> userService.create(UUID.randomUUID(), UserRole.ROLE_SYS_ADMIN,
+                adminRequest(null, "senha123")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("E-mail é obrigatório");
+    }
+
+    @Test
+    void sysAdminCreatingAdminWithDuplicateEmailThrows() {
+        when(userRepository.findByEmail("dup@example.com"))
+                .thenReturn(Optional.of(user("dup@example.com", UserRole.ROLE_ADMIN)));
+
+        assertThatThrownBy(() -> userService.create(UUID.randomUUID(), UserRole.ROLE_SYS_ADMIN,
+                adminRequest("dup@example.com", "senha123")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Já existe uma conta");
     }
 
     @Test
     void updateWithEmailConflictThrows() {
-        User existing = user("atual@example.com");
+        User existing = user("atual@example.com", UserRole.ROLE_ADMIN);
         when(userRepository.findByIdAndTenantId(userId, tenantId)).thenReturn(Optional.of(existing));
         when(userRepository.existsByTenantIdAndEmail(tenantId, "outro@example.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.update(tenantId, userId, request("outro@example.com")))
+        assertThatThrownBy(() -> userService.update(tenantId, UserRole.ROLE_SYS_ADMIN, userId,
+                adminRequest("outro@example.com", null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Já existe um usuário");
     }
 
     @Test
+    void adminCannotPromoteToAdminViaUpdate() {
+        assertThatThrownBy(() -> userService.update(tenantId, UserRole.ROLE_ADMIN, userId,
+                adminRequest("motoboy@example.com", null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("ADMIN não pode atribuir ROLE_ADMIN");
+    }
+
+    @Test
     void setActiveTogglesUser() {
-        User existing = user("x@example.com");
+        User existing = user("x@example.com", UserRole.ROLE_ADMIN);
         when(userRepository.findByIdAndTenantId(userId, tenantId)).thenReturn(Optional.of(existing));
 
         UserResponse response = userService.setActive(tenantId, userId, false);

@@ -1,4 +1,4 @@
-package vgandolfi.dev.mana_paes.domain.service;
+package vgandolfi.dev.mana_paes.application.service;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +17,8 @@ import vgandolfi.dev.mana_paes.domain.repository.DailyReportRepository;
 import vgandolfi.dev.mana_paes.domain.repository.NotificationConfigRepository;
 import vgandolfi.dev.mana_paes.domain.repository.ProductRepository;
 import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
+import vgandolfi.dev.mana_paes.application.service.NotificationService;
+import vgandolfi.dev.mana_paes.application.service.ReportService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -59,8 +61,9 @@ class DailyReportDispatcherTest {
     private DailyProductionReportResponse production() {
         return new DailyProductionReportResponse(date,
                 List.of(new DailyReportItemResponse(UUID.randomUUID(), "Pão", UnitMeasure.UN,
-                        new BigDecimal("10"), new BigDecimal("5.00"))),
-                new BigDecimal("5.00"));
+                        new BigDecimal("10"), new BigDecimal("2"), new BigDecimal("0"),
+                        new BigDecimal("12"), new BigDecimal("5.00"))),
+                new BigDecimal("5.00"), List.of("Everton"));
     }
 
     @Test
@@ -77,7 +80,7 @@ class DailyReportDispatcherTest {
     }
 
     @Test
-    void dispatchForTenantPersistsSendsAndMarksSent() {
+    void dispatchForTenantPersistsSendsWhatsAppAndMarksSent() {
         when(dailyReportRepository.findByTenantIdAndReportDate(tenantId, date)).thenReturn(Optional.empty());
         when(reportService.dailyFinancial(tenantId, date))
                 .thenReturn(new DailyFinancialReportResponse(date, new BigDecimal("5.00"), 1));
@@ -91,13 +94,13 @@ class DailyReportDispatcherTest {
         });
         when(dailyReportRepository.save(any(DailyReport.class))).thenAnswer(inv -> inv.getArgument(0));
         when(notificationService.sendDailyReportNotifications(any(), any(), any()))
-                .thenReturn(new NotificationService.DailyReportSendResult(true, true, "wa", "em"));
+                .thenReturn(new NotificationService.DailyReportSendResult(true, false, "wa", ""));
 
         DailyReportDispatchResponse response = dispatcher().dispatchForTenant(tenantId, date);
 
         assertThat(response.dispatched()).isTrue();
         assertThat(response.whatsappSent()).isTrue();
-        assertThat(response.emailSent()).isTrue();
+        assertThat(response.emailSent()).isFalse();
 
         ArgumentCaptor<DailyReport> captor = ArgumentCaptor.forClass(DailyReport.class);
         verify(dailyReportRepository, org.mockito.Mockito.times(2)).save(captor.capture());
@@ -108,6 +111,30 @@ class DailyReportDispatcherTest {
         assertThat(saved.getItems()).hasSize(1);
         assertThat(saved.getTenant().getId()).isEqualTo(tenantId);
         verify(notificationService).sendDailyReportNotifications(any(), any(), any());
+    }
+
+    @Test
+    void dispatchForTenantWithoutOrdersMarksSentWithoutNotifying() {
+        when(dailyReportRepository.findByTenantIdAndReportDate(tenantId, date)).thenReturn(Optional.empty());
+        when(reportService.dailyFinancial(tenantId, date))
+                .thenReturn(new DailyFinancialReportResponse(date, BigDecimal.ZERO, 0));
+        when(reportService.dailyProduction(tenantId, date))
+                .thenReturn(new DailyProductionReportResponse(date, List.of(), BigDecimal.ZERO, List.of()));
+        when(tenantRepository.getReferenceById(tenantId)).thenAnswer(inv -> {
+            Tenant tenant = new Tenant();
+            tenant.setId(inv.getArgument(0));
+            return tenant;
+        });
+        when(dailyReportRepository.save(any(DailyReport.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DailyReportDispatchResponse response = dispatcher().dispatchForTenant(tenantId, date);
+
+        assertThat(response.dispatched()).isTrue();
+        assertThat(response.whatsappSent()).isFalse();
+        verify(notificationService, never()).sendDailyReportNotifications(any(), any(), any());
+        ArgumentCaptor<DailyReport> captor = ArgumentCaptor.forClass(DailyReport.class);
+        verify(dailyReportRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues().get(1).isSent()).isTrue();
     }
 
     @Test
@@ -129,9 +156,9 @@ class DailyReportDispatcherTest {
 
         when(dailyReportRepository.findByTenantIdAndReportDate(dueTenant, date)).thenReturn(Optional.empty());
         when(reportService.dailyFinancial(dueTenant, date))
-                .thenReturn(new DailyFinancialReportResponse(date, BigDecimal.ZERO, 0));
+                .thenReturn(new DailyFinancialReportResponse(date, new BigDecimal("10.00"), 1));
         when(reportService.dailyProduction(dueTenant, date))
-                .thenReturn(new DailyProductionReportResponse(date, List.of(), BigDecimal.ZERO));
+                .thenReturn(new DailyProductionReportResponse(date, List.of(), BigDecimal.ZERO, List.of("Daiana")));
         when(tenantRepository.getReferenceById(dueTenant)).thenAnswer(inv -> {
             Tenant tenant = new Tenant();
             tenant.setId(inv.getArgument(0));
@@ -139,12 +166,11 @@ class DailyReportDispatcherTest {
         });
         when(dailyReportRepository.save(any(DailyReport.class))).thenAnswer(inv -> inv.getArgument(0));
         when(notificationService.sendDailyReportNotifications(any(), any(), any()))
-                .thenReturn(new NotificationService.DailyReportSendResult(false, false, "x", "y"));
+                .thenReturn(new NotificationService.DailyReportSendResult(false, false, "x", ""));
 
         List<DailyReportDispatchResponse> results = dispatcher().dispatchDueTenants(date, LocalTime.of(12, 0));
 
         assertThat(results).hasSize(1);
-        // apenas o tenant "due" foi persistido
         ArgumentCaptor<DailyReport> captor = ArgumentCaptor.forClass(DailyReport.class);
         verify(dailyReportRepository, org.mockito.Mockito.atLeastOnce()).save(captor.capture());
         assertThat(captor.getAllValues()).allMatch(report -> report.getTenant().getId().equals(dueTenant));

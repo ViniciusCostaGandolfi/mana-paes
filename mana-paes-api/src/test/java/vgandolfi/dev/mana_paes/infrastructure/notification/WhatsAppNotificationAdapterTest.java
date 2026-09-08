@@ -20,45 +20,55 @@ class WhatsAppNotificationAdapterTest {
 
     private OrderCreatedEvent event() {
         return new OrderCreatedEvent(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "Everton", "5511900000001",
                 new BigDecimal("55.00"), LocalDate.of(2026, 9, 1),
                 List.of(new OrderCreatedEvent.Item(UUID.randomUUID(), "Pão Francês", new BigDecimal("10"), UnitMeasure.UN)));
     }
 
     @Test
-    void orderConfirmationContainsOrderData() {
-        String message = adapter.orderConfirmation(event(), "João");
+    void orderConfirmationContainsVendorAndItems() {
+        String message = adapter.orderConfirmation(event());
 
         assertThat(message).contains("Pedido confirmado");
-        assertThat(message).contains("João");
+        assertThat(message).contains("Everton");
         assertThat(message).contains("Pão Francês");
         assertThat(message).contains("R$ 55,00");
     }
 
     @Test
-    void newOrderAdminAlertContainsRequesterAndItems() {
-        String message = adapter.newOrderAdminAlert(event(), "João");
+    void newOrderAdminAlertContainsVendorAndItems() {
+        String message = adapter.newOrderAdminAlert(event());
 
         assertThat(message).contains("Novo pedido recebido");
-        assertThat(message).contains("João");
+        assertThat(message).contains("Everton");
         assertThat(message).contains("Pão Francês");
     }
 
     @Test
-    void dailyReportContainsTotalsAndItems() {
+    void dailyReportContainsShiftsAndVendorNames() {
         DailyProductionReportResponse production = new DailyProductionReportResponse(LocalDate.of(2026, 9, 1),
-                List.of(new DailyReportItemResponse(UUID.randomUUID(), "Pão Francês", UnitMeasure.UN,
-                        new BigDecimal("10"), new BigDecimal("5.00"))),
-                new BigDecimal("5.00"));
+                List.of(new DailyReportItemResponse(UUID.randomUUID(), "Pão de sal", UnitMeasure.UN,
+                        new BigDecimal("50"), new BigDecimal("50"), new BigDecimal("0"),
+                        new BigDecimal("100"), new BigDecimal("55.00"))),
+                new BigDecimal("55.00"), List.of("Everton", "Daiana"));
         DailyFinancialReportResponse financial =
-                new DailyFinancialReportResponse(LocalDate.of(2026, 9, 1), new BigDecimal("5.00"), 2);
+                new DailyFinancialReportResponse(LocalDate.of(2026, 9, 1), new BigDecimal("55.00"), 2);
 
-        String message = adapter.dailyReport(production, financial);
+        String message = adapter.dailyReport(production, financial, "http://localhost:3000");
 
-        assertThat(message).contains("Relatório diário");
-        assertThat(message).contains("01/09/2026");
-        assertThat(message).contains("Pedidos: 2");
-        assertThat(message).contains("Pão Francês");
-        assertThat(message).contains("R$ 5,00");
+        assertThat(message).contains("Resumo dos pedidos - 01/09/2026");
+        assertThat(message).contains("2 pedido(s) de: Everton, Daiana");
+        assertThat(message).contains("Pão de sal — M:50 T:50 N:0");
+        assertThat(message).contains("TOTAL GERAL: R$ 55,00");
+        assertThat(message).contains("Acesse o sistema: http://localhost:3000");
+    }
+
+    @Test
+    void vendorReminderContainsNameAndLink() {
+        String message = adapter.vendorReminder("Everton", "https://app.manapaes.com/pedido?telefone=5511900000001&dia=2026-09-02");
+
+        assertThat(message).contains("Everton");
+        assertThat(message).contains("https://app.manapaes.com/pedido?telefone=5511900000001&dia=2026-09-02");
     }
 
     @Test

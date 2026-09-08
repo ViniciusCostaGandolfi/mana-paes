@@ -17,24 +17,24 @@
 #   docker compose -f docker-compose.dev.yaml up -d --build
 #   docker compose -f docker-compose.dev.yaml logs -f api
 #
-# Serviços:
-#   postgres  -> banco de dados (porta 5432)
-#   rabbitmq  -> fila de notificações + management UI (porta 15672)
-#   mailpit   -> captura de e-mails em dev (UI na porta 8025, SMTP na 1025)
-#   api       -> backend Spring Boot em JVM (porta 8080)
-#   web       -> frontend React (porta 3000)
+# Serviços (portas mapeadas para o HOST — acesso local):
+#   postgres  -> 5432 (banco de dados)
+#   rabbitmq  -> 5672 (AMQP) + 15672 (management UI: http://localhost:15672)
+#   mailpit   -> 1025 (SMTP) + 8025 (UI: http://localhost:8025)
+#   api       -> 8080 (http://localhost:8080/api/v1)
+#   web       -> 3000 (http://localhost:3000)
 # ==============================================================================
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: mana-paes-postgres
+    ports:
+      - "${DB_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    # Sem ports: no Coolify a exposição é via domínio (proxy). Para dev local
-    # com portas no host, usar docker-compose.dev.local.yaml (override).
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -46,6 +46,10 @@ services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
     container_name: mana-paes-rabbitmq
+    # Host 5672 ocupado pelo emulador service-bus de outro projeto → remapeado.
+    ports:
+      - "5673:5672"
+      - "15673:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
@@ -60,6 +64,9 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     container_name: mana-paes-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/readyz"]
       interval: 5s
@@ -71,6 +78,8 @@ services:
       context: ./mana-paes-api
       dockerfile: local.Dockerfile
     container_name: mana-paes-api
+    ports:
+      - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: dev
       DB_HOST: postgres
@@ -113,6 +122,8 @@ services:
         # produção (react-router-serve) o proxy não existe: aponte para a API.
         VITE_API_URL: ${VITE_API_URL}
     container_name: mana-paes-web
+    ports:
+      - "3000:3000"
     depends_on:
       - api
 

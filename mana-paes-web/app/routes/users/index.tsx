@@ -9,17 +9,11 @@ import { Pagination } from "~/components/ui/pagination";
 import { useAuth } from "~/hooks/use-auth";
 import { getApiErrorMessage } from "~/lib/api";
 import { queryClient } from "~/lib/query";
-import { USER_ROLE_LABEL, cn } from "~/lib/utils";
+import { USER_ROLE_BADGE_CLASS, USER_ROLE_LABEL, cn, formatPhoneBR } from "~/lib/utils";
 import { listUsers, setUserActive } from "~/services/user.service";
-import type { UserResponse, UserRole } from "~/types/api";
+import type { UserResponse } from "~/types/api";
 
 const PAGE_SIZE = 20;
-
-const ROLE_BADGE_CLASS: Record<UserRole, string> = {
-  ROLE_ADMIN: "badge-primary",
-  ROLE_REQUESTER: "badge-info",
-  ROLE_PRODUCTION: "badge-neutral",
-};
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -75,11 +69,11 @@ export default function UsersPage() {
         isError={isError}
         error={error}
         onRetry={() => refetch()}
-        isEmpty={!data || data.empty}
+        isEmpty={!data || data.page.empty}
         emptyMessage="Nenhum usuário encontrado."
         emptyHint="Cadastre um novo usuário para começar."
       >
-        {data && !data.empty ? (
+        {data && !data.page.empty ? (
           <div className="space-y-4">
             <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
               <table className="table">
@@ -107,14 +101,14 @@ export default function UsersPage() {
                             </span>
                           ) : null}
                         </td>
-                        <td>{user.email}</td>
-                        <td>{user.phone || "—"}</td>
-                        <td>{user.whatsappNumber || "—"}</td>
+                        <td>{user.email || "—"}</td>
+                        <td>{formatPhoneBR(user.phone) || "—"}</td>
+                        <td>{formatPhoneBR(user.whatsappNumber) || "—"}</td>
                         <td>
                           <span
                             className={cn(
                               "badge",
-                              ROLE_BADGE_CLASS[user.role],
+                              USER_ROLE_BADGE_CLASS[user.role],
                             )}
                           >
                             {USER_ROLE_LABEL[user.role]}
@@ -163,9 +157,9 @@ export default function UsersPage() {
 
             <Pagination
               page={page + 1}
-              totalPages={data.totalPages}
-              totalElements={data.totalElements}
-              size={data.size}
+              totalPages={data.page.totalPages}
+              totalElements={data.page.totalElements}
+              size={data.page.size}
               onChange={(nextPage) => setPage(nextPage - 1)}
             />
           </div>

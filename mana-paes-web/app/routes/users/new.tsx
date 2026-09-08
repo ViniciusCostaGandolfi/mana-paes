@@ -9,9 +9,9 @@ import { FormField } from "~/components/ui/form-field";
 import { PageHeader } from "~/components/ui/page-header";
 import { getApiErrorMessage } from "~/lib/api";
 import { queryClient } from "~/lib/query";
-import { USER_ROLE_LABEL } from "~/lib/utils";
 import { createUser } from "~/services/user.service";
-import type { UserRole } from "~/types/api";
+import type { UserRequest } from "~/types/api";
+import { useAuth } from "~/hooks/use-auth";
 
 const userSchema = z.object({
   name: z
@@ -24,23 +24,13 @@ const userSchema = z.object({
     .trim()
     .email("Informe um e-mail válido.")
     .max(254, "O e-mail deve ter no máximo 254 caracteres."),
-  phone: z
-    .string()
-    .trim()
-    .max(30, "O telefone deve ter no máximo 30 caracteres.")
-    .optional(),
-  whatsappNumber: z
-    .string()
-    .trim()
-    .max(30, "O WhatsApp deve ter no máximo 30 caracteres.")
-    .optional(),
-  role: z.enum(["ROLE_ADMIN", "ROLE_REQUESTER", "ROLE_PRODUCTION"]),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
 });
 
-type UserFormInput = z.input<typeof userSchema>;
-type UserFormValues = z.output<typeof userSchema>;
+type UserFormValues = z.infer<typeof userSchema>;
 
 export default function NewUserPage() {
+  const { isSysAdmin } = useAuth();
   const navigate = useNavigate();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -48,15 +38,9 @@ export default function NewUserPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<UserFormInput, unknown, UserFormValues>({
+  } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      phone: "",
-      whatsappNumber: "",
-      role: "ROLE_REQUESTER",
-    },
+    defaultValues: { name: "", email: "", password: "" },
   });
 
   const createMutation = useMutation({
@@ -70,20 +54,32 @@ export default function NewUserPage() {
 
   const onSubmit = (values: UserFormValues) => {
     setSubmitError(null);
-    createMutation.mutate({
+    const payload: UserRequest = {
       name: values.name,
       email: values.email,
-      phone: values.phone || undefined,
-      whatsappNumber: values.whatsappNumber || undefined,
-      role: values.role,
-    });
+      role: "ROLE_ADMIN",
+      password: values.password,
+    };
+    createMutation.mutate(payload);
   };
+
+  if (!isSysAdmin) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Novo usuário" />
+        <ErrorAlert error="Apenas o administrador do sistema pode criar usuários." />
+        <Link to="/users" className="btn">
+          Voltar
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Novo usuário"
-        subtitle="A senha inicial é definida via recuperação de senha por e-mail."
+        subtitle="Crie um administrador para a padaria. O acesso é criado com a senha informada."
       />
 
       <div className="max-w-2xl">
@@ -101,16 +97,12 @@ export default function NewUserPage() {
                   <input
                     type="text"
                     className="input w-full"
-                    placeholder="Ex.: Maria Silva"
+                    placeholder="Ex.: Breno Silva"
                     {...register("name")}
                   />
                 </FormField>
 
-                <FormField
-                  label="E-mail"
-                  required
-                  error={errors.email?.message}
-                >
+                <FormField label="E-mail" required error={errors.email?.message}>
                   <input
                     type="email"
                     className="input w-full"
@@ -120,45 +112,18 @@ export default function NewUserPage() {
                 </FormField>
 
                 <FormField
-                  label="Telefone"
-                  error={errors.phone?.message}
-                  hint="Opcional."
-                >
-                  <input
-                    type="tel"
-                    className="input w-full"
-                    placeholder="(00) 0000-0000"
-                    {...register("phone")}
-                  />
-                </FormField>
-
-                <FormField
-                  label="WhatsApp"
-                  error={errors.whatsappNumber?.message}
-                  hint="Opcional."
-                >
-                  <input
-                    type="tel"
-                    className="input w-full"
-                    placeholder="(00) 00000-0000"
-                    {...register("whatsappNumber")}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Perfil"
+                  label="Senha inicial"
                   required
-                  error={errors.role?.message}
+                  error={errors.password?.message}
+                  hint="O administrador usa esta senha para entrar no sistema."
                 >
-                  <select className="select w-full" {...register("role")}>
-                    {(Object.keys(USER_ROLE_LABEL) as UserRole[]).map(
-                      (value) => (
-                        <option key={value} value={value}>
-                          {USER_ROLE_LABEL[value]}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className="input w-full"
+                    placeholder="Mínimo de 6 caracteres"
+                    {...register("password")}
+                  />
                 </FormField>
               </div>
 

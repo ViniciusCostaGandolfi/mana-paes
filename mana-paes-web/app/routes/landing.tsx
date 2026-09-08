@@ -311,7 +311,7 @@ const FEATURES = [
     icon: <IconBell />,
     title: "Notificações WhatsApp e e-mail",
     description:
-      "Avisos automáticos em cada etapa — a produção e o solicitante sempre sabem o que fazer.",
+      "Avisos automáticos em cada etapa — a padaria e o vendedor sempre sabem o que fazer.",
   },
   {
     icon: <IconDocument />,
@@ -329,7 +329,7 @@ const FEATURES = [
     icon: <IconUsers />,
     title: "Acesso por perfil",
     description:
-      "Solicitante, produção e administração: cada perfil vê exatamente o que precisa.",
+      "Administração e vendedor: cada um vê exatamente o que precisa.",
   },
 ];
 
@@ -379,11 +379,8 @@ export default function LandingPage() {
         </nav>
 
         <div className="navbar-end gap-2">
-          <Link to="/login" className="btn btn-ghost btn-sm hidden sm:inline-flex">
+          <Link to="/login" className="btn btn-primary btn-sm">
             Entrar
-          </Link>
-          <Link to="/register" className="btn btn-primary btn-sm">
-            Criar conta
           </Link>
 
           <details
@@ -406,18 +403,13 @@ export default function LandingPage() {
                 </li>
               ))}
               <li className="divider my-1" />
-              <li>
-                <Link to="/login" onClick={() => setMenuOpen(false)}>
-                  Entrar
-                </Link>
-              </li>
               <li className="mt-1">
                 <Link
-                  to="/register"
+                  to="/login"
                   onClick={() => setMenuOpen(false)}
                   className="btn btn-primary btn-sm btn-block"
                 >
-                  Criar conta
+                  Entrar
                 </Link>
               </li>
             </ul>
@@ -458,21 +450,21 @@ export default function LandingPage() {
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
                 <Link
-                  to="/register"
+                  to="/login"
                   className="btn btn-primary btn-lg w-full sm:w-auto"
                 >
                   Fazer meu primeiro pedido
                   <IconArrowRight />
                 </Link>
-                <Link
-                  to="/login"
+                <a
+                  href="#como-funciona"
                   className="btn btn-outline btn-lg w-full sm:w-auto"
                 >
-                  Já tenho conta
-                </Link>
+                  Como funciona
+                </a>
               </div>
               <p className="mt-5 text-sm text-base-content/50">
-                Criação de conta grátis · Funciona no celular · Sem instalação
+                Pedidos sob encomenda · Funciona no celular · Sem instalação
               </p>
             </div>
 
@@ -608,9 +600,10 @@ export default function LandingPage() {
             </li>
             <li className="step step-primary" data-content="2">
               <div className="text-left">
-                <p className="font-semibold">Produção recebe na hora</p>
+                <p className="font-semibold">A padaria recebe na hora</p>
                 <p className="text-sm text-base-content/60">
-                  Sem telefonemas: o pedido chega direto para quem vai produzir.
+                  Sem telefonemas: o pedido chega direto para a equipe da
+                  padaria.
                 </p>
               </div>
             </li>
@@ -643,8 +636,7 @@ export default function LandingPage() {
               Tudo o que a padaria precisa, em um só lugar
             </h2>
             <p className="mt-3 text-base-content/70">
-              Ferramentas diretas para quem pede, para quem produz e para quem
-              administra.
+              Ferramentas diretas para quem administra e para quem entrega.
             </p>
           </div>
 
@@ -681,15 +673,14 @@ export default function LandingPage() {
               Pronto para começar?
             </h2>
             <p className="mt-2 max-w-xl text-primary-content/80">
-              Crie sua conta em menos de um minuto e faça seu primeiro pedido
-              ainda hoje.
+              Entre na sua conta e faça seu pedido de onde estiver.
             </p>
             <div className="card-actions mt-6 flex-col gap-3 sm:flex-row">
               <Link
-                to="/register"
+                to="/login"
                 className="btn btn-lg bg-base-100 text-base-content"
               >
-                Criar conta grátis
+                Entrar
               </Link>
               <a
                 href="#contato"
@@ -725,8 +716,8 @@ export default function LandingPage() {
             <Link to="/login" className="link link-hover">
               Entrar
             </Link>
-            <Link to="/register" className="link link-hover">
-              Criar conta
+            <Link to="/login" className="link link-hover">
+              Entrar
             </Link>
           </nav>
 

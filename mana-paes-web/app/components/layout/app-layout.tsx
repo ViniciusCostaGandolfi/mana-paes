@@ -12,7 +12,7 @@ interface NavItem {
 }
 
 export function AppLayout() {
-  const { isAuthenticated, isAdmin, isRequester, isProduction } = useAuth();
+  const { isAuthenticated, isAdmin, isSysAdmin } = useAuth();
   const [isOffline, setIsOffline] = useState<boolean>(
     () => typeof navigator !== "undefined" && !navigator.onLine,
   );
@@ -34,30 +34,22 @@ export function AppLayout() {
 
   const navItems: NavItem[] = [{ to: "/dashboard", label: "Dashboard", end: true }];
 
-  if (isRequester) {
-    navItems.push(
-      { to: "/orders", label: "Meus Pedidos" },
-      { to: "/orders/new", label: "Novo Pedido" },
-    );
-  }
-
-  if (isProduction) {
-    navItems.push(
-      { to: "/orders", label: "Pedidos" },
-      { to: "/reports/production", label: "Relatório de Produção" },
-    );
-  }
-
   if (isAdmin) {
     navItems.push(
       { to: "/orders", label: "Pedidos" },
       { to: "/products", label: "Produtos" },
-      { to: "/users", label: "Solicitantes" },
+      { to: "/vendors", label: "Vendedores" },
       { to: "/reports/production", label: "Relatório de Produção" },
       { to: "/reports/financial", label: "Relatório Financeiro" },
+      { to: "/settings/reminders", label: "Lembretes" },
       { to: "/settings/notifications", label: "Configurações" },
       { to: "/settings/whatsapp", label: "WhatsApp" },
+      { to: "/ajuda", label: "Ajuda" },
     );
+  }
+
+  if (isSysAdmin) {
+    navItems.push({ to: "/users", label: "Usuários" });
   }
 
   return (

@@ -1,5 +1,9 @@
 import { api } from "~/lib/api";
-import type { PageResponse, UserRequest, UserResponse } from "~/types/api";
+import type {
+  PageResponse,
+  UserRequest,
+  UserResponse,
+} from "~/types/api";
 
 export const listUsers = async (params: {
   page?: number;

@@ -95,12 +95,6 @@ export default function LoginPage() {
             <Link to="/forgot-password" className="link link-hover link-primary">
               Esqueci minha senha
             </Link>
-            <span className="text-base-content/60">
-              Não tem uma conta?{" "}
-              <Link to="/register" className="link link-hover link-primary">
-                Criar conta
-              </Link>
-            </span>
           </div>
         </div>
       </div>

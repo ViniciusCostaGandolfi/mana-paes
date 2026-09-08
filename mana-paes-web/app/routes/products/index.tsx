@@ -96,11 +96,11 @@ export default function ProductsPage() {
         isError={isError}
         error={error}
         onRetry={() => refetch()}
-        isEmpty={!data || data.empty}
+        isEmpty={!data || data.page.empty}
         emptyMessage="Nenhum produto encontrado."
         emptyHint="Cadastre um novo produto para começar."
       >
-        {data && !data.empty ? (
+        {data && !data.page.empty ? (
           <div className="space-y-4">
             <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
               <table className="table">
@@ -117,7 +117,17 @@ export default function ProductsPage() {
                 <tbody>
                   {data.content.map((product) => (
                     <tr key={product.id}>
-                      <td className="font-medium">{product.name}</td>
+                      <td className="font-medium">
+                        {product.name}
+                        {product.optionGroups && product.optionGroups.length > 0 ? (
+                          <span className="badge badge-ghost badge-sm ml-2">
+                            {product.optionGroups.length}{" "}
+                            {product.optionGroups.length === 1
+                              ? "grupo de opções"
+                              : "grupos de opções"}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="max-w-xs">
                         <span className="block truncate text-base-content/70">
                           {product.description || "—"}
@@ -165,9 +175,9 @@ export default function ProductsPage() {
 
             <Pagination
               page={page + 1}
-              totalPages={data.totalPages}
-              totalElements={data.totalElements}
-              size={data.size}
+              totalPages={data.page.totalPages}
+              totalElements={data.page.totalElements}
+              size={data.page.size}
               onChange={(nextPage) => setPage(nextPage - 1)}
             />
           </div>

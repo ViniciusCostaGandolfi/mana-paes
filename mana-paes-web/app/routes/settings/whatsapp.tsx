@@ -6,6 +6,7 @@ import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { ErrorAlert } from "~/components/ui/error-alert";
 import { PageHeader } from "~/components/ui/page-header";
 import { getApiErrorMessage } from "~/lib/api";
+import { formatPhoneBR } from "~/lib/utils";
 import {
   connectWhatsapp,
   disconnectWhatsapp,
@@ -21,23 +22,6 @@ import type {
 type ConnectionPhase = "loading" | "disconnected" | "connecting" | "connected";
 
 const POLLING_INTERVAL_MS = 3_000;
-
-/**
- * Formata o número conectado em um formato amigável para exibição.
- * Ex.: "5511999999999" → "+55 11 99999-9999".
- */
-function formatWhatsappNumber(value: string | null | undefined): string {
-  const digits = (value ?? "").replace(/\D/g, "");
-  if (!digits) return "";
-
-  if (digits.length === 13 && digits.startsWith("55")) {
-    return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 9)}-${digits.slice(9)}`;
-  }
-  if (digits.length === 12 && digits.startsWith("55")) {
-    return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 8)}-${digits.slice(8)}`;
-  }
-  return `+${digits}`;
-}
 
 export default function WhatsappSettingsPage() {
   const [status, setStatus] = useState<WhatsAppStatusResponse | null>(null);
@@ -169,7 +153,7 @@ export default function WhatsappSettingsPage() {
     });
   };
 
-  const connectedNumber = formatWhatsappNumber(status?.connectedNumber);
+  const connectedNumber = formatPhoneBR(status?.connectedNumber);
 
   return (
     <div className="space-y-6">

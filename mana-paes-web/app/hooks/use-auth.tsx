@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { UserResponse } from "~/types/api";
+import type { UserResponse, UserRole } from "~/types/api";
 import * as authService from "~/services/auth.service";
 import { getApiErrorMessage } from "~/lib/api";
 import {
@@ -19,12 +19,15 @@ import {
 export interface AuthContextValue {
   user: UserResponse | null;
   isAuthenticated: boolean;
+  isSysAdmin: boolean;
   isAdmin: boolean;
-  isRequester: boolean;
-  isProduction: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   setUser: (user: UserResponse | null) => void;
+}
+
+function hasAnyRole(user: UserResponse | null, ...roles: UserRole[]): boolean {
+  return !!user && roles.includes(user.role);
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -59,9 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       user,
       isAuthenticated: !!user,
-      isAdmin: role === "ROLE_ADMIN",
-      isRequester: role === "ROLE_REQUESTER",
-      isProduction: role === "ROLE_PRODUCTION",
+      isSysAdmin: role === "ROLE_SYS_ADMIN",
+      isAdmin: hasAnyRole(user, "ROLE_SYS_ADMIN", "ROLE_ADMIN"),
       login,
       logout,
       setUser,

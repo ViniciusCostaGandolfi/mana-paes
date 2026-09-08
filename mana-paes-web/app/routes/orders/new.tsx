@@ -8,12 +8,12 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ErrorAlert } from "~/components/ui/error-alert";
 import { FormField } from "~/components/ui/form-field";
 import { PageHeader } from "~/components/ui/page-header";
-import { useAuth } from "~/hooks/use-auth";
 import { getApiErrorMessage } from "~/lib/api";
-import { formatCurrency, UNIT_MEASURE_LABEL } from "~/lib/utils";
+import { formatCurrency, formatPhoneBR, ORDER_SHIFT_FIELDS, UNIT_MEASURE_LABEL } from "~/lib/utils";
 import { createOrder } from "~/services/order.service";
 import { listProducts } from "~/services/product.service";
-import type { ProductResponse } from "~/types/api";
+import { listVendors } from "~/services/vendor.service";
+import type { OrderItemRequest, ProductResponse } from "~/types/api";
 
 const MAX_ITEMS = 30;
 
@@ -32,14 +32,32 @@ function formatQuantity(value: number): string {
   );
 }
 
-const itemSchema = z.object({
-  productId: z.string().min(1, "Selecione um produto"),
-  quantity: z.coerce.number().min(0.01, "Quantidade mínima 0,01"),
+const selectionSchema = z.object({
+  groupId: z.string(),
+  optionId: z.string(),
 });
+
+const itemSchema = z
+  .object({
+    productId: z.string().min(1, "Selecione um produto"),
+    quantidadeManha: z.coerce.number().min(0, "Não pode ser negativo."),
+    quantidadeTarde: z.coerce.number().min(0, "Não pode ser negativo."),
+    quantidadeNoite: z.coerce.number().min(0, "Não pode ser negativo."),
+    selections: z.array(selectionSchema).optional(),
+  })
+  .refine(
+    (data) =>
+      data.quantidadeManha + data.quantidadeTarde + data.quantidadeNoite > 0,
+    {
+      message: "Informe ao menos um turno com quantidade.",
+      path: ["quantidadeManha"],
+    },
+  );
 
 const orderSchema = z
   .object({
     deliveryDate: z.string().min(1, "Informe a data de entrega"),
+    vendorId: z.string().optional(),
     items: z.array(itemSchema).min(1, "Adicione pelo menos um item"),
   })
   .refine((data) => data.deliveryDate >= todayLocal(), {
@@ -50,8 +68,15 @@ const orderSchema = z
 type OrderFormInput = z.input<typeof orderSchema>;
 type OrderFormValues = z.output<typeof orderSchema>;
 
+interface OrderItemFormValue {
+  productId: string;
+  quantidadeManha: number;
+  quantidadeTarde: number;
+  quantidadeNoite: number;
+  selections?: { groupId: string; optionId: string }[];
+}
+
 export default function NewOrderPage() {
-  const { isProduction } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -59,20 +84,35 @@ export default function NewOrderPage() {
     queryKey: ["products", "active"],
     queryFn: () => listProducts({ active: true, page: 0, size: 100 }),
   });
+  const vendorsQuery = useQuery({
+    queryKey: ["vendors"],
+    queryFn: listVendors,
+  });
 
   const products = productsQuery.data?.content ?? [];
+  const vendors = vendorsQuery.data ?? [];
 
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<OrderFormInput, unknown, OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
       deliveryDate: "",
-      items: [{ productId: "", quantity: 1 }],
+      vendorId: "",
+      items: [
+        {
+          productId: "",
+          quantidadeManha: 0,
+          quantidadeTarde: 0,
+          quantidadeNoite: 0,
+          selections: [],
+        } as OrderItemFormValue,
+      ],
     },
   });
 
@@ -82,7 +122,7 @@ export default function NewOrderPage() {
   });
 
   const watchedItems = watch("items");
-  const itemsValues = watchedItems ?? [];
+  const itemsValues = (watchedItems ?? []) as OrderItemFormValue[];
 
   const productById = useMemo(() => {
     const map = new Map<string, ProductResponse>();
@@ -101,23 +141,59 @@ export default function NewOrderPage() {
     return set;
   }, [itemsValues]);
 
+  const handleProductChange = (index: number, productId: string) => {
+    const product = productById.get(productId);
+    const selections = (product?.optionGroups ?? []).map((group) => ({
+      groupId: group.id,
+      optionId: "",
+    }));
+    setValue(`items.${index}.selections`, selections as never);
+  };
+
+  const handleOptionChange = (
+    index: number,
+    groupId: string,
+    optionId: string,
+  ) => {
+    const current = itemsValues[index]?.selections ?? [];
+    const next = current.map((selection) =>
+      selection.groupId === groupId ? { ...selection, optionId } : selection,
+    );
+    setValue(`items.${index}.selections`, next as never);
+  };
+
   const rows = itemsValues.map((item, index) => {
     const product = item.productId ? productById.get(item.productId) : undefined;
-    const quantity = Number(item.quantity) || 0;
-    const subtotal = product ? product.unitPrice * quantity : 0;
-    return {
-      key: fields[index]?.id ?? index,
-      product,
-      quantity,
-      subtotal,
+    const shifts = {
+      quantidadeManha: Number(item.quantidadeManha) || 0,
+      quantidadeTarde: Number(item.quantidadeTarde) || 0,
+      quantidadeNoite: Number(item.quantidadeNoite) || 0,
     };
+    const totalQuantity =
+      shifts.quantidadeManha + shifts.quantidadeTarde + shifts.quantidadeNoite;
+    const optionAdjustment = (item.selections ?? [])
+      .map((selection) => {
+        if (!selection.optionId) return 0;
+        const group = product?.optionGroups.find(
+          (g) => g.id === selection.groupId,
+        );
+        const option = group?.options.find((o) => o.id === selection.optionId);
+        return option?.priceAdjustment ?? 0;
+      })
+      .reduce((sum, value) => sum + value, 0);
+    const unitPrice = product ? product.unitPrice + optionAdjustment : 0;
+    const subtotal = unitPrice * totalQuantity;
+    return { key: fields[index]?.id ?? index, product, totalQuantity, subtotal };
   });
 
   const totalAmount = rows.reduce((sum, row) => sum + row.subtotal, 0);
 
   const createMutation = useMutation({
-    mutationFn: (payload: { deliveryDate: string; items: { productId: string; quantity: number }[] }) =>
-      createOrder(payload),
+    mutationFn: (payload: {
+      deliveryDate: string;
+      vendorId: string | null;
+      items: OrderItemRequest[];
+    }) => createOrder(payload),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       navigate(`/orders/${order.id}`);
@@ -127,9 +203,18 @@ export default function NewOrderPage() {
   const onSubmit = (values: OrderFormValues) => {
     createMutation.mutate({
       deliveryDate: values.deliveryDate,
+      vendorId: values.vendorId?.trim() || null,
       items: values.items.map((item) => ({
         productId: item.productId,
-        quantity: item.quantity,
+        quantidadeManha: item.quantidadeManha,
+        quantidadeTarde: item.quantidadeTarde,
+        quantidadeNoite: item.quantidadeNoite,
+        selections: (item.selections ?? [])
+          .filter((selection) => selection.groupId && selection.optionId)
+          .map((selection) => ({
+            groupId: selection.groupId,
+            optionId: selection.optionId,
+          })),
       })),
     });
   };
@@ -141,7 +226,7 @@ export default function NewOrderPage() {
     <div className="space-y-6">
       <PageHeader
         title="Novo Pedido"
-        subtitle="Informe a data de entrega e escolha os itens do pedido."
+        subtitle="Informe a data de entrega, o vendedor (opcional) e os itens com quantidades por turno."
         actions={
           <Link to="/orders" className="btn btn-ghost">
             Voltar
@@ -149,28 +234,7 @@ export default function NewOrderPage() {
         }
       />
 
-      {isProduction ? (
-        <div role="alert" className="alert alert-warning sm:alert-horizontal">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            className="h-6 w-6 shrink-0"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-            />
-          </svg>
-          <span className="flex-1">
-            Apenas solicitantes e administradores podem criar pedidos.
-          </span>
-        </div>
-      ) : productsQuery.isLoading ? (
+      {productsQuery.isLoading || vendorsQuery.isLoading ? (
         <div className="flex items-center justify-center py-16">
           <span
             role="status"
@@ -183,17 +247,18 @@ export default function NewOrderPage() {
           error={getApiErrorMessage(productsQuery.error)}
           onRetry={() => productsQuery.refetch()}
         />
+      ) : vendorsQuery.isError ? (
+        <ErrorAlert
+          error={getApiErrorMessage(vendorsQuery.error)}
+          onRetry={() => vendorsQuery.refetch()}
+        />
       ) : products.length === 0 ? (
         <EmptyState
           message="Nenhum produto ativo disponível."
-          hint="Peça ao administrador para cadastrar produtos."
+          hint="Cadastre produtos antes de criar pedidos."
         />
       ) : (
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          noValidate
-          className="space-y-6"
-        >
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-6">
           {createMutation.isError ? (
             <ErrorAlert error={getApiErrorMessage(createMutation.error)} />
           ) : null}
@@ -201,19 +266,36 @@ export default function NewOrderPage() {
           <div className="card border border-base-300 bg-base-100">
             <div className="card-body">
               <h2 className="card-title">Entrega</h2>
-              <div className="max-w-xs">
-                <FormField
-                  label="Data de entrega"
-                  required
-                  error={errors.deliveryDate?.message}
-                >
-                  <input
-                    type="date"
-                    min={todayLocal()}
-                    className="input w-full"
-                    {...register("deliveryDate")}
-                  />
-                </FormField>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="max-w-xs">
+                  <FormField
+                    label="Data de entrega"
+                    required
+                    error={errors.deliveryDate?.message}
+                  >
+                    <input
+                      type="date"
+                      min={todayLocal()}
+                      className="input w-full"
+                      {...register("deliveryDate")}
+                    />
+                  </FormField>
+                </div>
+                <div className="max-w-xs">
+                  <FormField
+                    label="Vendedor"
+                    hint="Opcional. Associa o pedido a um vendedor cadastrado."
+                  >
+                    <select className="select w-full" {...register("vendorId")}>
+                      <option value="">Sem vendedor</option>
+                      {vendors.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.name} ({formatPhoneBR(vendor.phone)})
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                </div>
               </div>
             </div>
           </div>
@@ -225,7 +307,15 @@ export default function NewOrderPage() {
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  onClick={() => append({ productId: "", quantity: 1 })}
+                  onClick={() =>
+                    append({
+                      productId: "",
+                      quantidadeManha: 0,
+                      quantidadeTarde: 0,
+                      quantidadeNoite: 0,
+                      selections: [],
+                    } as OrderItemFormValue)
+                  }
                   disabled={fields.length >= MAX_ITEMS}
                 >
                   Adicionar item
@@ -234,19 +324,23 @@ export default function NewOrderPage() {
 
               <div className="space-y-4">
                 {fields.map((field, index) => {
-                  const row = rows[index];
+                  const item = itemsValues[index];
+                  const product = item?.productId
+                    ? productById.get(item.productId)
+                    : undefined;
                   const excludeIds = new Set(
                     Array.from(excludedProductIds).filter(
-                      (id) => id !== itemsValues[index]?.productId,
+                      (id) => id !== item?.productId,
                     ),
                   );
+                  const selections = item?.selections ?? [];
                   return (
                     <div
                       key={field.id}
                       className="rounded-box border border-base-200 p-3"
                     >
                       <div className="grid gap-3 md:grid-cols-12">
-                        <div className="md:col-span-6">
+                        <div className="md:col-span-4">
                           <FormField
                             label="Produto"
                             required
@@ -254,52 +348,61 @@ export default function NewOrderPage() {
                           >
                             <select
                               className="select w-full"
-                              {...register(`items.${index}.productId` as const)}
+                              {...register(`items.${index}.productId` as const, {
+                                onChange: (event) =>
+                                  handleProductChange(index, event.target.value),
+                              })}
                             >
                               <option value="">Selecione um produto</option>
-                              {products.map((product) => (
+                              {products.map((productOption) => (
                                 <option
-                                  key={product.id}
-                                  value={product.id}
-                                  disabled={excludeIds.has(product.id)}
+                                  key={productOption.id}
+                                  value={productOption.id}
+                                  disabled={excludeIds.has(productOption.id)}
                                 >
-                                  {product.name} —{" "}
-                                  {formatCurrency(product.unitPrice)} /{" "}
-                                  {UNIT_MEASURE_LABEL[product.unitMeasure]}
+                                  {productOption.name} —{" "}
+                                  {formatCurrency(productOption.unitPrice)} /{" "}
+                                  {UNIT_MEASURE_LABEL[productOption.unitMeasure]}
                                 </option>
                               ))}
                             </select>
                           </FormField>
                         </div>
 
-                        <div className="md:col-span-3">
-                          <FormField
-                            label="Quantidade"
-                            required
-                            error={errors.items?.[index]?.quantity?.message}
-                          >
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0.01"
-                              className="input w-full"
-                              {...register(`items.${index}.quantity`, {
-                                valueAsNumber: true,
-                              })}
-                            />
-                          </FormField>
-                        </div>
+                        {ORDER_SHIFT_FIELDS.map((shift, shiftIndex) => (
+                          <div key={shift.key} className="md:col-span-2">
+                            <FormField
+                              label={shift.label}
+                              error={
+                                errors.items?.[index]?.[shift.key]?.message ??
+                                (shiftIndex === 0
+                                  ? errors.items?.[index]?.quantidadeManha?.message
+                                  : undefined)
+                              }
+                            >
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="input w-full"
+                                placeholder="0"
+                                {...register(`items.${index}.${shift.key}` as const, {
+                                  valueAsNumber: true,
+                                })}
+                              />
+                            </FormField>
+                          </div>
+                        ))}
 
-                        <div className="flex flex-col justify-end md:col-span-2">
-                          <span className="text-sm font-medium text-base-content">
-                            Subtotal
-                          </span>
-                          <span className="text-base-content/80">
-                            {formatCurrency(row?.subtotal ?? 0)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-end justify-end md:col-span-1">
+                        <div className="flex items-end justify-end md:col-span-2">
+                          <div>
+                            <span className="text-sm font-medium text-base-content">
+                              Subtotal
+                            </span>
+                            <span className="block text-base-content/80">
+                              {formatCurrency(rows[index]?.subtotal ?? 0)}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             className="btn btn-ghost btn-square btn-sm"
@@ -325,6 +428,52 @@ export default function NewOrderPage() {
                           </button>
                         </div>
                       </div>
+
+                      {product && product.optionGroups.length > 0 ? (
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {product.optionGroups.map((group) => {
+                            const selected = selections.find(
+                              (selection) => selection.groupId === group.id,
+                            );
+                            return (
+                              <div key={group.id}>
+                                <FormField
+                                  label={group.name}
+                                  hint={
+                                    group.required
+                                      ? "Obrigatório"
+                                      : "Opcional"
+                                  }
+                                >
+                                  <select
+                                    className="select select-sm w-full"
+                                    value={selected?.optionId ?? ""}
+                                    onChange={(event) =>
+                                      handleOptionChange(
+                                        index,
+                                        group.id,
+                                        event.target.value,
+                                      )
+                                    }
+                                  >
+                                    <option value="">
+                                      {group.required ? "Selecione..." : "Nenhuma"}
+                                    </option>
+                                    {group.options.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.name}
+                                        {option.priceAdjustment > 0
+                                          ? ` (+${formatCurrency(option.priceAdjustment)})`
+                                          : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </FormField>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -349,7 +498,7 @@ export default function NewOrderPage() {
                   <thead>
                     <tr>
                       <th>Produto</th>
-                      <th className="text-right">Quantidade</th>
+                      <th className="text-right">Total</th>
                       <th className="text-right">Subtotal</th>
                     </tr>
                   </thead>
@@ -358,7 +507,7 @@ export default function NewOrderPage() {
                       <tr key={row.key}>
                         <td>{row.product ? row.product.name : "—"}</td>
                         <td className="text-right">
-                          {formatQuantity(row.quantity)}
+                          {formatQuantity(row.totalQuantity)}
                         </td>
                         <td className="text-right">
                           {formatCurrency(row.subtotal)}

@@ -12,18 +12,14 @@ import {
   formatCurrency,
   formatDate,
   formatDateTime,
+  ORDER_SHIFT_FIELDS,
   ORDER_STATUS_LABEL,
   UNIT_MEASURE_LABEL,
 } from "~/lib/utils";
 import { getOrder, updateOrderStatus } from "~/services/order.service";
 import type { OrderStatus, OrderStatusUpdateRequest } from "~/types/api";
 
-const STATUS_FLOW: OrderStatus[] = [
-  "PENDING",
-  "IN_PRODUCTION",
-  "READY",
-  "DELIVERED",
-];
+const STATUS_FLOW: OrderStatus[] = ["PENDING", "ACCEPTED"];
 
 function formatQuantity(value: number): string {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(
@@ -33,7 +29,7 @@ function formatQuantity(value: number): string {
 
 export default function OrderDetailPage() {
   const { id } = useParams();
-  const { isAdmin, isProduction } = useAuth();
+  const { isSysAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 
@@ -64,14 +60,14 @@ export default function OrderDetailPage() {
   const errorMessage = error ? getApiErrorMessage(error) : undefined;
   const idShort = orderId.slice(0, 8) || "—";
 
-  const canManageStatus = (isAdmin || isProduction) && !!order;
+  // Apenas ROLE_ADMIN gerencia o status do pedido (contrato do backend).
+  const canManageStatus = !isSysAdmin && !!order;
   const currentIndex = order ? STATUS_FLOW.indexOf(order.status) : -1;
   const nextStatus =
     currentIndex >= 0 && currentIndex < STATUS_FLOW.length - 1
       ? STATUS_FLOW[currentIndex + 1]
       : null;
-  const canCancel =
-    !!order && order.status !== "DELIVERED" && order.status !== "CANCELLED";
+  const canCancel = !!order && order.status !== "CANCELLED";
 
   const handleAdvance = () => {
     if (!nextStatus || !order) return;
@@ -112,7 +108,9 @@ export default function OrderDetailPage() {
                     aria-hidden="true"
                   />
                 ) : null}
-                Avançar para {ORDER_STATUS_LABEL[nextStatus]}
+                {nextStatus === "ACCEPTED"
+                  ? "Aceitar"
+                  : `Avançar para ${ORDER_STATUS_LABEL[nextStatus]}`}
               </button>
             ) : null}
             {canManageStatus && canCancel ? (
@@ -152,8 +150,8 @@ export default function OrderDetailPage() {
                         <td className="font-mono text-sm">{order.id}</td>
                       </tr>
                       <tr>
-                        <th>Solicitante</th>
-                        <td>{order.requesterName}</td>
+                        <th>Vendedor</th>
+                        <td>{order.vendorName ?? order.requesterName ?? "—"}</td>
                       </tr>
                       <tr>
                         <th>Data de entrega</th>
@@ -184,7 +182,12 @@ export default function OrderDetailPage() {
                       <tr>
                         <th>Produto</th>
                         <th>Unidade</th>
-                        <th className="text-right">Quantidade</th>
+                        {ORDER_SHIFT_FIELDS.map((shift) => (
+                          <th key={shift.key} className="text-right">
+                            {shift.label}
+                          </th>
+                        ))}
+                        <th className="text-right">Total</th>
                         <th className="text-right">Preço unitário</th>
                         <th className="text-right">Subtotal</th>
                       </tr>
@@ -192,10 +195,24 @@ export default function OrderDetailPage() {
                     <tbody>
                       {order.items.map((item) => (
                         <tr key={item.productId}>
-                          <td>{item.productName}</td>
+                          <td>
+                            <div className="font-medium">{item.productName}</div>
+                            {item.options.length > 0 ? (
+                              <div className="text-xs text-base-content/60">
+                                {item.options
+                                  .map((option) => option.optionName)
+                                  .join(", ")}
+                              </div>
+                            ) : null}
+                          </td>
                           <td>{UNIT_MEASURE_LABEL[item.unitMeasure]}</td>
-                          <td className="text-right">
-                            {formatQuantity(item.quantity)}
+                          {ORDER_SHIFT_FIELDS.map((shift) => (
+                            <td key={shift.key} className="text-right">
+                              {formatQuantity(item[shift.key])}
+                            </td>
+                          ))}
+                          <td className="text-right font-medium">
+                            {formatQuantity(item.totalQuantity)}
                           </td>
                           <td className="text-right">
                             {formatCurrency(item.unitPrice)}
@@ -208,7 +225,7 @@ export default function OrderDetailPage() {
                     </tbody>
                     <tfoot>
                       <tr>
-                        <th colSpan={4}>Total</th>
+                        <th colSpan={6}>Total</th>
                         <th className="text-right font-bold">
                           {formatCurrency(order.totalAmount)}
                         </th>

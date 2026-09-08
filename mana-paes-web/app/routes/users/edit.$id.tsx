@@ -10,9 +10,12 @@ import { PageHeader } from "~/components/ui/page-header";
 import { Spinner } from "~/components/ui/spinner";
 import { getApiErrorMessage } from "~/lib/api";
 import { queryClient } from "~/lib/query";
-import { USER_ROLE_LABEL, cn } from "~/lib/utils";
+import { USER_ROLE_BADGE_CLASS, USER_ROLE_LABEL, cn, formatPhoneBR, normalizePhoneBR } from "~/lib/utils";
 import { getUser, updateUser } from "~/services/user.service";
-import type { UserRole } from "~/types/api";
+import type { UserRequest, UserRole } from "~/types/api";
+import { useAuth } from "~/hooks/use-auth";
+
+const ROLES: UserRole[] = ["ROLE_SYS_ADMIN", "ROLE_ADMIN"];
 
 const userSchema = z.object({
   name: z
@@ -35,20 +38,14 @@ const userSchema = z.object({
     .trim()
     .max(30, "O WhatsApp deve ter no máximo 30 caracteres.")
     .optional(),
-  role: z.enum(["ROLE_ADMIN", "ROLE_REQUESTER", "ROLE_PRODUCTION"]),
+  role: z.enum(ROLES),
 });
 
-type UserFormInput = z.input<typeof userSchema>;
-type UserFormValues = z.output<typeof userSchema>;
-
-const ROLE_BADGE_CLASS: Record<UserRole, string> = {
-  ROLE_ADMIN: "badge-primary",
-  ROLE_REQUESTER: "badge-info",
-  ROLE_PRODUCTION: "badge-neutral",
-};
+type UserFormValues = z.infer<typeof userSchema>;
 
 export default function EditUserPage() {
   const { id } = useParams();
+  const { isSysAdmin } = useAuth();
   const navigate = useNavigate();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -63,14 +60,14 @@ export default function EditUserPage() {
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<UserFormInput, unknown, UserFormValues>({
+  } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
       name: "",
       email: "",
       phone: "",
       whatsappNumber: "",
-      role: "ROLE_REQUESTER",
+      role: "ROLE_ADMIN",
     },
   });
 
@@ -78,16 +75,27 @@ export default function EditUserPage() {
     if (user) {
       reset({
         name: user.name,
-        email: user.email,
-        phone: user.phone ?? "",
-        whatsappNumber: user.whatsappNumber ?? "",
+        email: user.email ?? "",
+        phone: formatPhoneBR(user.phone),
+        whatsappNumber: formatPhoneBR(user.whatsappNumber),
         role: user.role,
       });
     }
   }, [user, reset]);
 
   const updateMutation = useMutation({
-    mutationFn: (values: UserFormValues) => updateUser(id!, values),
+    mutationFn: (values: UserFormValues) =>
+      updateUser(id!, {
+        name: values.name,
+        email: values.email.trim() || null,
+        phone: values.phone?.trim()
+          ? normalizePhoneBR(values.phone)
+          : null,
+        whatsappNumber: values.whatsappNumber?.trim()
+          ? normalizePhoneBR(values.whatsappNumber)
+          : null,
+        role: isSysAdmin ? values.role : user?.role ?? "ROLE_ADMIN",
+      } satisfies UserRequest),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       navigate("/users");
@@ -97,13 +105,7 @@ export default function EditUserPage() {
 
   const onSubmit = (values: UserFormValues) => {
     setSubmitError(null);
-    updateMutation.mutate({
-      name: values.name,
-      email: values.email,
-      phone: values.phone || undefined,
-      whatsappNumber: values.whatsappNumber || undefined,
-      role: values.role,
-    });
+    updateMutation.mutate(values);
   };
 
   if (isLoading) {
@@ -134,17 +136,13 @@ export default function EditUserPage() {
         title="Editar usuário"
         actions={
           <div className="flex items-center gap-2">
-            <span
-              className={cn("badge", ROLE_BADGE_CLASS[user.role])}
-            >
+            <span className={cn("badge", USER_ROLE_BADGE_CLASS[user.role])}>
               {USER_ROLE_LABEL[user.role]}
             </span>
             <span
               className={cn(
                 "badge",
-                user.active
-                  ? "badge-success badge-outline"
-                  : "badge-ghost",
+                user.active ? "badge-success badge-outline" : "badge-ghost",
               )}
             >
               {user.active ? "Ativo" : "Inativo"}
@@ -168,16 +166,12 @@ export default function EditUserPage() {
                   <input
                     type="text"
                     className="input w-full"
-                    placeholder="Ex.: Maria Silva"
+                    placeholder="Ex.: Breno Silva"
                     {...register("name")}
                   />
                 </FormField>
 
-                <FormField
-                  label="E-mail"
-                  required
-                  error={errors.email?.message}
-                >
+                <FormField label="E-mail" required error={errors.email?.message}>
                   <input
                     type="email"
                     className="input w-full"
@@ -212,22 +206,24 @@ export default function EditUserPage() {
                   />
                 </FormField>
 
-                <FormField
-                  label="Perfil"
-                  required
-                  error={errors.role?.message}
-                >
-                  <select className="select w-full" {...register("role")}>
-                    {(Object.keys(USER_ROLE_LABEL) as UserRole[]).map(
-                      (value) => (
+                {isSysAdmin ? (
+                  <FormField label="Perfil" required error={errors.role?.message}>
+                    <select className="select w-full" {...register("role")}>
+                      {ROLES.map((value) => (
                         <option key={value} value={value}>
                           {USER_ROLE_LABEL[value]}
                         </option>
-                      ),
-                    )}
-                  </select>
-                </FormField>
+                      ))}
+                    </select>
+                  </FormField>
+                ) : null}
               </div>
+
+              {!isSysAdmin ? (
+                <p className="text-sm text-base-content/60">
+                  Apenas o administrador do sistema pode alterar o perfil.
+                </p>
+              ) : null}
 
               <div className="card-actions justify-end pt-2">
                 <Link to="/users" className="btn">

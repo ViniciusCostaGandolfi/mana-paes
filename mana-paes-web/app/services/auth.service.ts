@@ -1,14 +1,9 @@
 import { api } from "~/lib/api";
-import type { LoginResponse, MessageResponse, RegisterRequest } from "~/types/api";
+import type { LoginResponse, MessageResponse } from "~/types/api";
 
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
   const { data } = await api.post<LoginResponse>("/auth/login", { email, password });
   return data;
-};
-
-export const register = async (data: RegisterRequest): Promise<LoginResponse> => {
-  const { data: response } = await api.post<LoginResponse>("/auth/register", data);
-  return response;
 };
 
 export const forgotPassword = async (email: string): Promise<MessageResponse> => {

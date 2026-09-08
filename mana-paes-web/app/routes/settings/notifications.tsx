@@ -14,6 +14,8 @@ import { queryClient } from "~/lib/query";
 import {
   cn,
   formatDateTime,
+  formatPhoneBR,
+  normalizePhoneBR,
   NOTIFICATION_CHANNEL_LABEL,
   NOTIFICATION_STATUS_LABEL,
   NOTIFICATION_TYPE_LABEL,
@@ -36,8 +38,6 @@ const configSchema = z.object({
   dailyReportTime: z.string(),
   whatsappEnabled: z.boolean(),
   emailEnabled: z.boolean(),
-  evolutionApiInstanceName: z.string(),
-  evolutionApiKey: z.string(),
 });
 
 type ConfigFormValues = z.infer<typeof configSchema>;
@@ -58,7 +58,7 @@ const LOGS_PAGE_SIZE = 15;
 function buildConfigPayload(values: ConfigFormValues): NotificationConfigRequest {
   const payload: NotificationConfigRequest = {};
 
-  const whatsappNumber = values.adminWhatsappNumber.trim();
+  const whatsappNumber = normalizePhoneBR(values.adminWhatsappNumber.trim());
   if (whatsappNumber) payload.adminWhatsappNumber = whatsappNumber;
 
   const email = values.adminEmail.trim();
@@ -69,12 +69,6 @@ function buildConfigPayload(values: ConfigFormValues): NotificationConfigRequest
 
   payload.whatsappEnabled = values.whatsappEnabled;
   payload.emailEnabled = values.emailEnabled;
-
-  const instanceName = values.evolutionApiInstanceName.trim();
-  if (instanceName) payload.evolutionApiInstanceName = instanceName;
-
-  const apiKey = values.evolutionApiKey.trim();
-  if (apiKey) payload.evolutionApiKey = apiKey;
 
   return payload;
 }
@@ -102,8 +96,6 @@ export default function NotificationsSettingsPage() {
       dailyReportTime: "",
       whatsappEnabled: false,
       emailEnabled: false,
-      evolutionApiInstanceName: "",
-      evolutionApiKey: "",
     },
   });
 
@@ -111,18 +103,19 @@ export default function NotificationsSettingsPage() {
     const config = configQuery.data;
     if (!config) return;
     reset({
-      adminWhatsappNumber: config.adminWhatsappNumber ?? "",
+      adminWhatsappNumber: formatPhoneBR(config.adminWhatsappNumber),
       adminEmail: config.adminEmail ?? "",
-      dailyReportTime: config.dailyReportTime ? config.dailyReportTime.slice(0, 5) : "",
+      dailyReportTime: config.dailyReportTime
+        ? config.dailyReportTime.slice(0, 5)
+        : "",
       whatsappEnabled: config.whatsappEnabled,
       emailEnabled: config.emailEnabled,
-      evolutionApiInstanceName: config.evolutionApiInstanceName ?? "",
-      evolutionApiKey: "",
     });
   }, [configQuery.data, reset]);
 
   const updateMutation = useMutation({
-    mutationFn: (values: ConfigFormValues) => updateConfig(buildConfigPayload(values)),
+    mutationFn: (values: ConfigFormValues) =>
+      updateConfig(buildConfigPayload(values)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications-config"] });
     },
@@ -182,12 +175,12 @@ export default function NotificationsSettingsPage() {
                 <FormField
                   label="WhatsApp do administrador"
                   error={errors.adminWhatsappNumber?.message}
-                  hint="Com DDI e DDD, ex.: 5511999998888"
+                  hint="O DDI 55 é adicionado automaticamente."
                 >
                   <input
                     type="text"
                     className="input w-full"
-                    placeholder="5511999998888"
+                    placeholder="11999998888"
                     {...register("adminWhatsappNumber")}
                   />
                 </FormField>
@@ -195,6 +188,7 @@ export default function NotificationsSettingsPage() {
                 <FormField
                   label="E-mail do administrador"
                   error={errors.adminEmail?.message}
+                  hint="Usado apenas para recuperação de senha."
                 >
                   <input
                     type="email"
@@ -213,32 +207,6 @@ export default function NotificationsSettingsPage() {
                     type="time"
                     className="input w-full"
                     {...register("dailyReportTime")}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Instância da Evolution API"
-                  error={errors.evolutionApiInstanceName?.message}
-                >
-                  <input
-                    type="text"
-                    className="input w-full"
-                    placeholder="Nome da instância"
-                    {...register("evolutionApiInstanceName")}
-                  />
-                </FormField>
-
-                <FormField
-                  label="Chave da Evolution API"
-                  error={errors.evolutionApiKey?.message}
-                  hint="Deixe em branco para manter a chave atual"
-                >
-                  <input
-                    type="password"
-                    className="input w-full"
-                    placeholder="Deixe em branco para manter a atual"
-                    autoComplete="new-password"
-                    {...register("evolutionApiKey")}
                   />
                 </FormField>
 
@@ -468,10 +436,10 @@ export default function NotificationsSettingsPage() {
                 </div>
 
                 <Pagination
-                  page={logsQuery.data.number + 1}
-                  totalPages={logsQuery.data.totalPages}
-                  totalElements={logsQuery.data.totalElements}
-                  size={logsQuery.data.size}
+                  page={logsQuery.data.page.number + 1}
+                  totalPages={logsQuery.data.page.totalPages}
+                  totalElements={logsQuery.data.page.totalElements}
+                  size={logsQuery.data.page.size}
                   onChange={setPage}
                 />
               </div>

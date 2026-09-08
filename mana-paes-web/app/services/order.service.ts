@@ -1,9 +1,11 @@
 import { api } from "~/lib/api";
 import type {
+  MessageResponse,
   OrderRequest,
   OrderResponse,
   OrderStatusUpdateRequest,
   PageResponse,
+  PublicOrderRequest,
 } from "~/types/api";
 
 export const listOrders = async (params: {
@@ -24,10 +26,22 @@ export const createOrder = async (data: OrderRequest): Promise<OrderResponse> =>
   return response.data;
 };
 
+export const createPublicOrder = async (
+  data: PublicOrderRequest,
+): Promise<OrderResponse> => {
+  const response = await api.post<OrderResponse>("/public/orders", data);
+  return response.data;
+};
+
 export const updateOrderStatus = async (
   id: string,
   data: OrderStatusUpdateRequest,
 ): Promise<OrderResponse> => {
   const { data: updated } = await api.patch<OrderResponse>(`/orders/${id}/status`, data);
   return updated;
+};
+
+export const acceptAllOrders = async (): Promise<MessageResponse> => {
+  const { data } = await api.post<MessageResponse>("/orders/accept-all");
+  return data;
 };

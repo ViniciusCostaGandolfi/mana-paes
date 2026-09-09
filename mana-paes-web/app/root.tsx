@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { registerSW } from "virtual:pwa-register";
 import {
   isRouteErrorResponse,
   Links,
@@ -48,7 +47,11 @@ export default function App() {
   // em produção, onde o vite-plugin-pwa gera sw.js + manifest.webmanifest).
   useEffect(() => {
     if (import.meta.env.PROD) {
-      registerSW({ immediate: true });
+      // updateViaCache: "none" — o navegador (em especial iOS Safari, que é
+      // "pegajoso" com service worker) não pode usar o cache HTTP ao buscar o
+      // sw.js, senão fica servindo um SW antigo com assets removidos do
+      // servidor (tela branca no iPhone). Força a checagem a cada visita.
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
     }
   }, []);
 

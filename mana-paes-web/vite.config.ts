@@ -53,6 +53,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         navigateFallback: "/index.html",
+        // SW novo assume o controle imediatamente e limpa caches de versões
+        // antigas — essencial p/ iOS Safari, que segura o SW antigo (assets
+        // removidos → tela branca no iPhone).
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/v1"),

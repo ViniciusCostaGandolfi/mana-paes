@@ -23,7 +23,23 @@ interface ApiErrorResponse {
   errors?: string[] | null;
 }
 
-const baseURL = import.meta.env.VITE_API_URL ?? "/api/v1";
+/**
+ * Normaliza a baseURL da API: os services chamam paths relativos como
+ * /auth/login, então a baseURL precisa terminar com /api/v1. Aceita:
+ *  - VITE_API_URL vazio/ausente → "/api/v1"
+ *  - VITE_API_URL="https://api.exemplo.com" → "https://api.exemplo.com/api/v1"
+ *  - VITE_API_URL="https://api.exemplo.com/api/v1" → inalterado
+ *  - VITE_API_URL="https://api.exemplo.com/" → "https://api.exemplo.com/api/v1"
+ */
+function resolveBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_URL;
+  if (!raw || raw.trim() === "") return "/api/v1";
+  const url = raw.replace(/\/+$/, "");
+  if (url.endsWith("/api/v1")) return url;
+  return `${url}/api/v1`;
+}
+
+const baseURL = resolveBaseUrl();
 
 export const api: AxiosInstance = axios.create({
   baseURL,

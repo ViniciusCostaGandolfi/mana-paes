@@ -16,6 +16,8 @@ import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
 import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
 import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 
+import java.util.Optional;
+
 /**
  * Cria o primeiro {@code SYS_ADMIN} do sistema a partir do env
  * ({@code app.system-admin.email/password}), em TODOS os perfis (inclusive
@@ -60,8 +62,19 @@ public class SystemAdminInitializer implements ApplicationRunner {
             return;
         }
         String email = sysAdmin.email().trim().toLowerCase();
-        if (userRepository.findByEmail(email).isPresent() || userRepository.existsByRole(UserRole.ROLE_SYS_ADMIN)) {
-            log.info("system_admin_skip reason=already_exists email={}", email);
+
+        // Já existe um SYS_ADMIN (mesmo e-mail ou outro): o env é a fonte da
+        // verdade — sincroniza e-mail + senha no SYS_ADMIN existente e segue.
+        Optional<User> existingByEmail = userRepository.findByEmail(email);
+        if (existingByEmail.isPresent()) {
+            syncPassword(existingByEmail.get(), sysAdmin.password(), email, "already_exists");
+            return;
+        }
+        Optional<User> anySysAdmin = userRepository.findByRole(UserRole.ROLE_SYS_ADMIN).stream().findFirst();
+        if (anySysAdmin.isPresent()) {
+            User user = anySysAdmin.get();
+            user.setEmail(email);
+            syncPassword(user, sysAdmin.password(), email, "another_sys_admin_exists");
             return;
         }
 
@@ -85,5 +98,15 @@ public class SystemAdminInitializer implements ApplicationRunner {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private void syncPassword(User user, String password, String email, String skipReason) {
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            user.setPasswordHash(passwordEncoder.encode(password));
+            userRepository.save(user);
+            log.info("system_admin_synced userId={} email={} (password)", user.getId(), email);
+        } else {
+            log.info("system_admin_skip reason={} email={}", skipReason, email);
+        }
     }
 }

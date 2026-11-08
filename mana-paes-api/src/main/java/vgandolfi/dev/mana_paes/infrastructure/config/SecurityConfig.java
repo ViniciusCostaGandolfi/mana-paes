@@ -67,6 +67,8 @@ public class SecurityConfig {
                         .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/api/v1/auth/**", "/api/v1/webhooks/**", "/api/v1/public/**").permitAll();
+                    // Health check do container (Dockerfile HEALTHCHECK) e probes do orquestrador
+                    auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
                     if (h2ConsoleEnabled) {
                         // console H2 somente em dev; frameOptions sameOrigin já libera o frame
                         auth.requestMatchers("/h2-console/**").permitAll();

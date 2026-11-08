@@ -1,7 +1,7 @@
 # ==============================================================================
 # Mana Paes — docker-compose de PRODUÇÃO/NUVEM (deploy no Coolify)
 # ------------------------------------------------------------------------------
-# Stack completa: PostgreSQL + RabbitMQ + API (build nativo GraalVM) + Web.
+# Stack completa: PostgreSQL + RabbitMQ + API (build JVM) + Web.
 #
 # TODAS as variáveis são lidas do arquivo `.env` na RAIZ do repositório —
 # SEM fallback: se a variável não estiver definida no .env, o compose falha

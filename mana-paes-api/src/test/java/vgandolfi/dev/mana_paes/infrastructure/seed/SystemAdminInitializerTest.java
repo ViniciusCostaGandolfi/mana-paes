@@ -13,6 +13,7 @@ import vgandolfi.dev.mana_paes.domain.repository.TenantRepository;
 import vgandolfi.dev.mana_paes.domain.repository.UserRepository;
 import vgandolfi.dev.mana_paes.infrastructure.config.AppProperties;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -51,10 +52,7 @@ class SystemAdminInitializerTest {
         return new SystemAdminInitializer(userRepository, tenantRepository, passwordEncoder, props);
     }
 
-    @Test
-    void createsRootTenantAndSysAdminWhenEnvConfigured() {
-        when(userRepository.findByEmail("vinicius@vgandolfi.dev")).thenReturn(Optional.empty());
-        when(userRepository.existsByRole(UserRole.ROLE_SYS_ADMIN)).thenReturn(false);
+    private void stubNewTenantAndUser() {
         when(tenantRepository.save(any(Tenant.class))).thenAnswer(inv -> {
             Tenant tenant = inv.getArgument(0);
             tenant.setId(UUID.randomUUID());
@@ -65,6 +63,13 @@ class SystemAdminInitializerTest {
             user.setId(UUID.randomUUID());
             return user;
         });
+    }
+
+    @Test
+    void createsRootTenantAndSysAdminWhenEnvConfigured() {
+        when(userRepository.findByEmail("vinicius@vgandolfi.dev")).thenReturn(Optional.empty());
+        when(userRepository.findByRole(UserRole.ROLE_SYS_ADMIN)).thenReturn(List.of());
+        stubNewTenantAndUser();
         when(passwordEncoder.encode("admin123")).thenReturn("hash");
 
         initializer(appProperties("vinicius@vgandolfi.dev", "admin123")).run(args);
@@ -78,14 +83,47 @@ class SystemAdminInitializerTest {
     }
 
     @Test
-    void skipsWhenSysAdminAlreadyExists() {
-        when(userRepository.findByEmail("vinicius@vgandolfi.dev"))
-                .thenReturn(Optional.of(new User()));
+    void trimsSurroundingWhitespaceFromEnvCredentials() {
+        when(userRepository.findByEmail("vinicius@vgandolfi.dev")).thenReturn(Optional.empty());
+        when(userRepository.findByRole(UserRole.ROLE_SYS_ADMIN)).thenReturn(List.of());
+        stubNewTenantAndUser();
+        when(passwordEncoder.encode("admin123")).thenReturn("hash");
+
+        initializer(appProperties("  Vinicius@Vgandolfi.dev  ", "  admin123  ")).run(args);
+
+        verify(passwordEncoder).encode("admin123");
+        org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmail()).isEqualTo("vinicius@vgandolfi.dev");
+    }
+
+    @Test
+    void skipsWhenSysAdminAlreadyExistsWithMatchingPassword() {
+        User existing = new User();
+        existing.setEmail("vinicius@vgandolfi.dev");
+        existing.setPasswordHash("hash");
+        when(userRepository.findByEmail("vinicius@vgandolfi.dev")).thenReturn(Optional.of(existing));
+        when(passwordEncoder.matches("admin123", "hash")).thenReturn(true);
 
         initializer(appProperties("vinicius@vgandolfi.dev", "admin123")).run(args);
 
         verify(tenantRepository, never()).save(any());
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void syncsPasswordWhenExistingHashDoesNotMatch() {
+        User existing = new User();
+        existing.setEmail("vinicius@vgandolfi.dev");
+        existing.setPasswordHash("old-hash");
+        when(userRepository.findByEmail("vinicius@vgandolfi.dev")).thenReturn(Optional.of(existing));
+        when(passwordEncoder.matches("admin123", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("admin123")).thenReturn("new-hash");
+
+        initializer(appProperties("vinicius@vgandolfi.dev", "admin123")).run(args);
+
+        verify(userRepository).save(existing);
+        assertThat(existing.getPasswordHash()).isEqualTo("new-hash");
     }
 
     @Test

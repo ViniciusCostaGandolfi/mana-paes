@@ -63,18 +63,29 @@ public class SystemAdminInitializer implements ApplicationRunner {
         }
         String email = sysAdmin.email().trim().toLowerCase();
 
+        // Espaços acidentais no .env (ex.: "senha ") tornam o login impossível,
+        // porque o cliente envia a senha sem eles. Normaliza a senha do bootstrap.
+        String password = sysAdmin.password().trim();
+        if (!password.equals(sysAdmin.password())) {
+            log.warn("system_admin_password_trimmed reason=env_has_surrounding_whitespace");
+        }
+        if (!hasText(password)) {
+            log.warn("system_admin_skip reason=env_not_configured");
+            return;
+        }
+
         // Já existe um SYS_ADMIN (mesmo e-mail ou outro): o env é a fonte da
         // verdade — sincroniza e-mail + senha no SYS_ADMIN existente e segue.
         Optional<User> existingByEmail = userRepository.findByEmail(email);
         if (existingByEmail.isPresent()) {
-            syncPassword(existingByEmail.get(), sysAdmin.password(), email, "already_exists");
+            syncPassword(existingByEmail.get(), password, email, "already_exists");
             return;
         }
         Optional<User> anySysAdmin = userRepository.findByRole(UserRole.ROLE_SYS_ADMIN).stream().findFirst();
         if (anySysAdmin.isPresent()) {
             User user = anySysAdmin.get();
             user.setEmail(email);
-            syncPassword(user, sysAdmin.password(), email, "another_sys_admin_exists");
+            syncPassword(user, password, email, "another_sys_admin_exists");
             return;
         }
 
@@ -87,7 +98,7 @@ public class SystemAdminInitializer implements ApplicationRunner {
         user.setTenant(savedTenant);
         user.setName("Vinicius Gandolfi");
         user.setEmail(email);
-        user.setPasswordHash(passwordEncoder.encode(sysAdmin.password()));
+        user.setPasswordHash(passwordEncoder.encode(password));
         user.setRole(UserRole.ROLE_SYS_ADMIN);
         user.setActive(true);
         User savedUser = userRepository.save(user);
